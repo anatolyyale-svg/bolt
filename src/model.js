@@ -17,7 +17,7 @@ export function normalizeProject(input){
    const repair=Number.isFinite(renovation.model_cost_per_m2)&&Number.isFinite(a.area_m2)?renovation.model_cost_per_m2*a.area_m2:null;
    const maintenance=Number.isFinite(rental.maintenance_per_m2_per_month)&&Number.isFinite(a.area_m2)?rental.maintenance_per_m2_per_month*a.area_m2*12:null;
    const layout=layoutByType.get(a.type);
-   return {id:a.id,number:a.number,block:a.block,floor:a.floor,type:a.type_label||a.type,direction:a.window_direction||a.view||null,area:a.area_m2,pricePerMeter:a.price_per_m2,price:a.price_total,status:a.status??'available',plan:null,plan3d:null,nightly,nights:rental.paid_nights_per_year??null,occupancy:rental.occupancy_percent??null,indexation:rental.nightly_rate_annual_indexation_percent??null,repair,maintenance,source:a.source,illustrativeLayout:layout?.id||null};
+   return {id:a.id,number:a.number,block:a.block,floor:a.floor,type:a.type_label||a.type,typeKey:a.type,direction:a.window_direction||a.view||null,area:a.area_m2,pricePerMeter:a.price_per_m2,price:a.price_total,status:a.status??'available',plan:null,plan3d:null,nightly,nights:rental.paid_nights_per_year??null,occupancy:rental.occupancy_percent??null,indexation:rental.nightly_rate_annual_indexation_percent??null,repair,maintenance,source:a.source,illustrativeLayout:layout?.id||null};
  });
  const floors=[];
  for(const plan of input.plans?.floor_plans||[]) for(const number of (Array.isArray(plan.floors)?plan.floors:[])) floors.push({block:plan.block,number,image:driveImage(plan.clean_png||plan.file),source:plan.file?.google_drive_file_id||null});
