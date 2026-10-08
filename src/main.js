@@ -32,4 +32,9 @@ function bind(){document.querySelectorAll('[data-select]').forEach(el=>{el.oncli
 function message(text){document.getElementById('source-message').textContent=text;}
 function load(data){project=validateProject(data);selected=null;compare.clear();finance={...project.finance};programId='';includeRepair=false;render();message('Данные проекта загружены. Проверьте источник и актуальность.');}
 async function fetchSource(url){try{if(new URL(url).protocol!=='https:')throw Error('Источник должен использовать HTTPS');message('Загрузка данных…');const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Ошибка источника: '+response.status);const data=validateProject(await response.json());const previous=selected;project={...data,source:url};if(project.apartments.some(a=>a.id===previous&&a.status==='available'))select(previous);else{selected=null;finance={...project.finance};render();}message('Источник обновлён.');}catch(err){message(err.message);}}
-render();
+try {
+  render();
+} catch (error) {
+  console.error(error);
+  document.querySelector('#app').innerHTML = `<main class="section"><div class="card"><h1>Не удалось загрузить страницу</h1><p>Ошибка интерфейса: ${escape(error?.message || 'неизвестная ошибка')}</p><p class="muted">Обновите проект после синхронизации с GitHub.</p></div></main>`;
+}
