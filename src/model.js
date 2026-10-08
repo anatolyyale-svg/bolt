@@ -36,8 +36,8 @@ export function normalizeProject(input) {
   const rental = input.rental_model || {},
     renovation = input.renovation || {},
     media = input.media || {};
-  // The source marks nightly rates as derived from another project; never reuse them here.
-  const rates = {};
+  // Nightly rates are supplied and confirmed by the user for this project.
+  const rates = { studio: 120, one_bedroom: 225, two_bedroom: 400 };
   const layoutByType = new Map(
     (input.plans?.apartment_layouts || []).map((layout) => [
       layout.apartment_type,
@@ -146,7 +146,7 @@ export function normalizeProject(input) {
     sourceFormat: input.schema_version || null,
     sourceNotes: [
       ...(input.data_quality?.missing_or_unconfirmed || []),
-      "Ночные ставки не перенесены: исходник указывает расчёт через Renaissance.",
+      "Ночные ставки подтверждены пользователем: студия 120 $, 1+1 225 $, 2+1 400 $.",
     ],
   };
 }
