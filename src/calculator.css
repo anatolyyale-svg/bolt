@@ -1,0 +1,28 @@
+/* Calculator presentation: the data model stays shared with the rest of the page. */
+#installment,#investment{position:relative}
+#installment>.eyebrow,#investment>.eyebrow{color:#0878ad}
+#installment>h2,#investment>h2{font-size:clamp(34px,4vw,54px);margin-bottom:32px}
+#installment>h2::before,#investment>h2::before{color:#0878ad;content:"06";display:inline-block;font-family:Manrope,Arial,sans-serif;font-size:12px;font-weight:600;letter-spacing:0;margin-right:20px;vertical-align:middle}
+#investment>h2::before{content:"07"}
+#installment>.card{border-radius:22px;padding:38px}
+#installment>.card::before{background:#f7f8f6;border:1px solid #d4dbe0;border-radius:18px;color:#69737e;content:"01 · ВЫБОР ПЛАНА                 02 · СТРУКТУРА ПЛАТЕЖЕЙ                 03 · ГРАФИК ПЛАТЕЖЕЙ";display:block;font-size:11px;letter-spacing:.35px;margin-bottom:34px;overflow:hidden;padding:16px 18px;white-space:pre}
+#installment>.card>label:first-child{max-width:none}
+#installment select{border-radius:22px;font-size:14px;padding:15px 18px}
+#installment .detail-grid{border:1px solid #d4dbe0;border-radius:16px;gap:0;grid-template-columns:repeat(2,1fr);margin-top:30px;overflow:hidden}
+#installment .detail-grid>div{border-bottom:1px solid #d4dbe0;border-right:1px solid #d4dbe0;padding:22px}
+#installment .detail-grid>div:nth-child(2n){border-right:0}
+#installment .detail-grid>div:nth-last-child(-n+2){border-bottom:0}
+#installment .detail-grid strong{color:#0878ad;font-size:22px}
+#investment>p.muted{max-width:760px}
+#investment .investment-layout{grid-template-columns:minmax(0,1.7fr) minmax(300px,.9fr);gap:28px}
+#investment .investment-layout>div>.card:first-child,#investment .results,#investment .summary{border-radius:20px;padding:30px}
+#investment .investment-layout>div>.card:first-child::before{background:#f7f8f6;border:1px solid #d4dbe0;border-radius:16px;color:#0878ad;content:"ДОХОД ОТ АРЕНДЫ       КАПИТАЛИЗАЦИЯ       КАПИТАЛИЗАЦИЯ + ДОХОД ОТ АРЕНДЫ";display:block;font-size:11px;margin-bottom:28px;overflow:hidden;padding:15px 18px;white-space:pre}
+#investment .form-grid{gap:20px}
+#investment .form-grid label{background:#fff;border:1px solid #d4dbe0;border-radius:16px;padding:18px}
+#investment .form-grid input{border-radius:12px;font-size:18px;padding:16px}
+#investment .results{background:#eef4f7}
+#investment .results h3{font-family:Georgia,serif;font-size:28px;font-weight:400}
+#investment .results .result-row{border-color:#d0dce2;padding:17px 0}
+#investment .results .result-row strong{color:#0878ad;font-size:16px}
+#investment .summary{background:#f7f8f6}
+@media(max-width:700px){#installment>.card,#investment .investment-layout>div>.card:first-child,#investment .results,#investment .summary{padding:20px}#installment>.card::before,#investment .investment-layout>div>.card:first-child::before{font-size:9px;overflow-x:auto}#installment .detail-grid{grid-template-columns:1fr}#installment .detail-grid>div,#installment .detail-grid>div:nth-child(2n){border-bottom:1px solid #d4dbe0;border-right:0}#installment .detail-grid>div:last-child{border-bottom:0}}
