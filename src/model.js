@@ -1,6 +1,29 @@
 export const missing = '[ТРЕБУЮТСЯ ДАННЫЕ]';
 export const emptyProject = {name:null,description:null,currency:null,render:null,images:[],seaDistance:null,completionDate:null,presentation:null,camera:null,location:null,history:[],apartments:[],floors:[],programs:[],finance:{},source:null};
-export function validateProject(data){
+const driveImage = file => file?.direct_public_url || (file?.google_drive_file_id ? `https://drive.google.com/uc?export=view&id=${file.google_drive_file_id}` : null);
+const driveFile = file => file?.direct_public_url || (file?.google_drive_file_id ? `https://drive.google.com/uc?export=download&id=${file.google_drive_file_id}` : null);
+
+// Converts the Centropolis source document into the generic project contract.
+// Values confirmed by the user (availability, December 2028, and installment programs)
+// are applied here; unconfirmed fields remain null and therefore block calculations.
+export function normalizeProject(input){
+ if(!input?.project || !Array.isArray(input.apartments)) return input;
+ const rental=input.rental_model||{}, renovation=input.renovation||{}, media=input.media||{};
+ const rates=rental.nightly_rates||{};
+ const layoutByType=new Map((input.plans?.apartment_layouts||[]).map(layout=>[layout.apartment_type,layout]));
+ const apartments=input.apartments.map(a=>{
+   const nightly=rates[a.type]??null;
+   const repair=Number.isFinite(renovation.model_cost_per_m2)&&Number.isFinite(a.area_m2)?renovation.model_cost_per_m2*a.area_m2:null;
+   const maintenance=Number.isFinite(rental.maintenance_per_m2_per_month)&&Number.isFinite(a.area_m2)?rental.maintenance_per_m2_per_month*a.area_m2*12:null;
+   const layout=layoutByType.get(a.type);
+   return {id:a.id,number:a.number,block:a.block,floor:a.floor,type:a.type_label||a.type,direction:a.window_direction||a.view||null,area:a.area_m2,pricePerMeter:a.price_per_m2,price:a.price_total,status:a.status??'available',plan:null,plan3d:null,nightly,nights:rental.paid_nights_per_year??null,occupancy:rental.occupancy_percent??null,indexation:rental.nightly_rate_annual_indexation_percent??null,repair,maintenance,source:a.source,illustrativeLayout:layout?.id||null};
+ });
+ const floors=[];
+ for(const plan of input.plans?.floor_plans||[]) for(const number of (Array.isArray(plan.floors)?plan.floors:[])) floors.push({block:plan.block,number,image:driveImage(plan.clean_png||plan.file),source:plan.file?.google_drive_file_id||null});
+ return {...emptyProject,name:input.project.name_ru||input.project.name||null,description:input.project.description||null,currency:input.project.currency||null,render:driveImage(media.architectural_render||media),images:(media.images||[]).map(item=>driveImage(item)).filter(Boolean),seaDistance:input.construction?.distance_to_sea_m??null,completionDate:'Декабрь 2028',presentation:input.links?.presentation?.url||null,camera:null,location:{address:[input.location?.street,input.location?.building_number].filter(Boolean).join(', ')||null,lat:input.location?.latitude??null,lng:input.location?.longitude??null,infrastructure:[]},history:[],apartments,floors,programs:(input.installment_programs||[]).map(program=>({id:program.id,name:`Блок ${program.block}: ${program.down_payment_percent}% / ${program.installment_share_percent}% / ${program.final_payment_percent}%`,downPercent:program.down_payment_percent,months:program.monthly_payment_count,finalPercent:program.final_payment_percent,repairAllowed:false,conditions:'Подтверждено пользователем; договорные документы будут добавлены позже.'})),finance:{repair:null,nightly:null,nights:rental.paid_nights_per_year??null,occupancy:rental.occupancy_percent??null,indexation:rental.nightly_rate_annual_indexation_percent??null,indexationEnabled:false,vat:rental.vat_percent??null,management:rental.management_company_share_percent??null,tax:rental.owner_income_tax_percent??null,maintenance:null,other:null,purchaseDate:null,operationDate:null},source:input.project.website||null,sourceFormat:input.schema_version||null,sourceNotes:input.data_quality?.missing_or_unconfirmed||[]};
+}
+export function validateProject(input){
+ const data=normalizeProject(input);
  if(!data || typeof data !== 'object' || !Array.isArray(data.apartments)) throw Error('Источник должен содержать массив apartments');
  const ids=new Set();
  for(const a of data.apartments){if(!a.id || ids.has(String(a.id))) throw Error('У квартир должны быть уникальные id'); ids.add(String(a.id));if(!['available','reserved','sold'].includes(a.status)) throw Error('Неизвестный статус квартиры');for(const k of ['area','price','pricePerMeter'])if(a[k]!=null&&(!Number.isFinite(a[k])||a[k]<0))throw Error(`Некорректное поле ${k}`);}
