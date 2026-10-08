@@ -69,7 +69,7 @@ const image = (url, title) =>
     ? `<img src="${escape(safe(url))}" alt="${escape(title)}">`
     : `<div class="asset-placeholder"><span class="plan-icon">⌑</span><strong>${title}</strong><small>${missing}</small></div>`;
 const apartment = () => project.apartments.find((a) => a.id === selected);
-function select(id) {
+function select(id, redraw = true) {
   const a = project.apartments.find((a) => a.id === id);
   if (!a || a.status !== "available") return;
   selected = id;
@@ -89,7 +89,7 @@ function select(id) {
     occupancy: a.occupancy ?? project.finance.occupancy,
     maintenance: a.maintenance ?? project.finance.maintenance,
   };
-  render();
+  if (redraw) render();
 }
 function metrics(result) {
   return [
@@ -440,6 +440,10 @@ function load(data) {
   finance = { ...project.finance };
   programId = "";
   includeRepair = false;
+  const firstAvailable = project.apartments.find(
+    (a) => a.status === "available",
+  );
+  if (firstAvailable) select(firstAvailable.id, false);
   render();
   message("Данные проекта загружены. Проверьте источник и актуальность.");
 }
@@ -462,6 +466,10 @@ async function fetchSource(url) {
     else {
       selected = null;
       finance = { ...project.finance };
+      const firstAvailable = project.apartments.find(
+        (a) => a.status === "available",
+      );
+      if (firstAvailable) select(firstAvailable.id, false);
       render();
     }
     message("Источник обновлён.");
@@ -470,6 +478,10 @@ async function fetchSource(url) {
   }
 }
 try {
+  const firstAvailable = project.apartments.find(
+    (a) => a.status === "available",
+  );
+  if (firstAvailable) select(firstAvailable.id, false);
   render();
 } catch (error) {
   console.error(error);
