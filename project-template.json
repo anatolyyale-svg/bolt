@@ -1,0 +1,38 @@
+{
+  "name": null,
+  "description": null,
+  "currency": null,
+  "render": null,
+  "images": [],
+  "seaDistance": null,
+  "completionDate": null,
+  "updatedAt": null,
+  "presentation": null,
+  "camera": null,
+  "location": {
+    "address": null,
+    "lat": null,
+    "lng": null,
+    "infrastructure": []
+  },
+  "history": [],
+  "apartments": [],
+  "floors": [],
+  "programs": [],
+  "finance": {
+    "repair": null,
+    "nightly": null,
+    "nights": null,
+    "occupancy": null,
+    "indexation": null,
+    "indexationEnabled": false,
+    "vat": null,
+    "management": null,
+    "tax": null,
+    "maintenance": null,
+    "other": null,
+    "purchaseDate": null,
+    "operationDate": null
+  },
+  "source": null
+}
