@@ -1,6 +1,7 @@
 import './style.css';
 import {emptyProject,missing,validateProject,installment,roi,daysInYear} from './model.js';
-let project=structuredClone(emptyProject),selected=null,compare=new Set(),filters={search:'',status:'available',block:'',sort:'number'},finance={},programId='',includeRepair=false;
+import centropolisSource from '../centropolis.json';
+let project=validateProject(centropolisSource),selected=null,compare=new Set(),filters={search:'',status:'available',block:'',sort:'number'},finance={...project.finance},programId='',includeRepair=false;
 const labels={price:'Стоимость квартиры',repair:'Стоимость ремонта',nightly:'Аренда за ночь',nights:'Оплаченные ночи',occupancy:'Загрузка, %',vat:'НДС, %',management:'Управление, %',tax:'Налог на доход, %',maintenance:'Обслуживание в год',other:'Прочие расходы в год',indexation:'Индексация аренды, %',purchaseDate:'Дата покупки',operationDate:'Начало эксплуатации'};
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const display=v=>v==null||v===''?missing:escape(v);
