@@ -25,7 +25,7 @@ let project = validateProject(centropolisSource),
   includeRepair = false;
 const labels = {
   price: "Стоимость квартиры",
-  repair: "Стоимость ремонта",
+  repairPerM2: "Стоимость ремонта, $/м²",
   nightly: "Аренда за ночь",
   nights: "Оплаченные ночи",
   occupancy: "Загрузка, %",
@@ -73,9 +73,16 @@ function select(id) {
   const a = project.apartments.find((a) => a.id === id);
   if (!a || a.status !== "available") return;
   selected = id;
+  const blockProgram =
+    project.programs.find((program) =>
+      String(program.id).startsWith(`${a.block}_`),
+    ) || project.programs[0];
+  programId = blockProgram?.id || "";
+  includeRepair = blockProgram?.repairAllowed === true;
   finance = {
     ...project.finance,
     price: a.price,
+    repairPerM2: a.repairPerM2 ?? project.finance.repairPerM2,
     repair: a.repair ?? project.finance.repair,
     nightly: a.nightly ?? project.finance.nightly,
     nights: a.nights ?? project.finance.nights,
@@ -118,6 +125,11 @@ function render() {
     floor = project.floors.find(
       (f) => f.block === a?.block && f.number === a?.floor,
     );
+  const floorUnits = a
+    ? project.apartments.filter(
+        (unit) => unit.block === a.block && unit.floor === a.floor,
+      )
+    : [];
   const rows = project.apartments
     .filter(
       (a) =>
@@ -186,7 +198,7 @@ ${safe(project.camera) ? `<section><h2>Строительство онлайн</
     .join("")}</select></label></div>
 <div class="table-wrap"><div class="table-scroll"><table><thead><tr>${["Сравнить", "Блок", "Этаж", "Квартира", "Тип", "Окна", "Площадь", "Цена / м²", "Стоимость", "Статус"].map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${rows.map((a) => `<tr class="${selected === a.id ? "selected" : a.status}"><td><input aria-label="Сравнить квартиру ${escape(a.number)}" type="checkbox" data-compare="${escape(a.id)}" ${compare.has(a.id) ? "checked" : ""}></td><td>${display(a.block)}</td><td>${display(a.floor)}</td><td><button class="row-select" data-select="${escape(a.id)}" ${a.status !== "available" ? "disabled" : ""}>${display(a.number)}</button></td><td>${display(a.type)}</td><td>${display(a.direction)}</td><td>${display(a.area)}</td><td>${money(a.pricePerMeter)}</td><td>${money(a.price)}</td><td><span class="badge">${selected === a.id ? "Выбрана" : { available: "Свободна", reserved: "Забронирована", sold: "Продана" }[a.status]}</span></td></tr>`).join("")}</tbody></table></div>${!rows.length ? `<div class="empty"><span>⌕</span><h3>${project.apartments.length ? "Нет квартир по выбранным условиям" : "Каталог ожидает данные проекта"}</h3><p>${project.apartments.length ? "Измените фильтры, чтобы увидеть другие квартиры." : missing + " · Подключите источник или загрузите JSON проекта."}</p></div>` : ""}</div>
 ${
-  compare.size
+  compare.size > 1
     ? `<div class="comparison"><h3>Сравнение квартир</h3><div class="comparison-grid">${project.apartments
         .filter((a) => compare.has(a.id))
         .map(
@@ -225,7 +237,7 @@ ${
           })
           .join("")}</svg>`
       : ""
-  }</div><div class="legend"><span>● Свободна</span><span class="yellow">● Выбрана</span><span class="muted">● Забронирована</span><span class="red">● Продана</span></div></article></div></section>
+  }</div>${floorUnits.length ? `<div class="floor-units"><small>Квартиры на этаже</small>${floorUnits.map((unit) => `<button class="floor-unit ${selected === unit.id ? "selected" : unit.status}" data-select="${escape(unit.id)}">${display(unit.number)}</button>`).join("")}</div>` : ""}<div class="legend"><span>● Свободна</span><span class="yellow">● Выбрана</span><span class="muted">● Забронирована</span><span class="red">● Продана</span></div></article></div></section>
 <section class="section" id="installment"><div class="eyebrow">03 / УСЛОВИЯ ПОКУПКИ</div><h2>Рассрочка застройщика</h2><div class="card"><label>Программа рассрочки<select id="program"><option value="">Выберите подтверждённую программу</option>${project.programs.map((p) => `<option value="${escape(p.id)}" ${p.id === programId ? "selected" : ""}>${escape(p.name)}</option>`).join("")}</select></label>${p?.repairAllowed ? `<label class="check"><input id="include-repair" type="checkbox" ${includeRepair ? "checked" : ""}>Включить ремонт в рассрочку</label>` : ""}<p class="muted">${display(p?.conditions)}</p><div class="detail-grid">${[
     ["Стоимость квартиры", money(a?.price)],
     [
@@ -294,9 +306,13 @@ function bind() {
   document.querySelectorAll("[data-compare]").forEach(
     (el) =>
       (el.onchange = () => {
-        el.checked
-          ? compare.add(el.dataset.compare)
-          : compare.delete(el.dataset.compare);
+        if (el.checked) {
+          compare.add(el.dataset.compare);
+          if (!selected) {
+            select(el.dataset.compare);
+            return;
+          }
+        } else compare.delete(el.dataset.compare);
         render();
       }),
   );
@@ -305,6 +321,27 @@ function bind() {
       filters[k] = e.target.value;
       render();
     };
+  const programSelect = document.getElementById("program");
+  if (programSelect) {
+    const label = programSelect.closest("label");
+    label?.classList.add("program-select-label");
+    const pills = document.createElement("div");
+    pills.className = "program-pills";
+    for (const option of [...programSelect.options].filter(
+      (item) => item.value,
+    )) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `program-pill${option.value === programId ? " active" : ""}`;
+      button.textContent = option.textContent;
+      button.onclick = () => {
+        programSelect.value = option.value;
+        programSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+      pills.append(button);
+    }
+    programSelect.before(pills);
+  }
   document.querySelectorAll("[data-finance]").forEach(
     (el) =>
       (el.onchange = (e) => {
@@ -315,6 +352,14 @@ function bind() {
             : el.value === ""
               ? null
               : Number(el.value);
+        if (k === "repairPerM2") {
+          const selectedApartment = apartment();
+          finance.repair =
+            Number.isFinite(finance.repairPerM2) &&
+            Number.isFinite(selectedApartment?.area)
+              ? finance.repairPerM2 * selectedApartment.area
+              : null;
+        }
         if (["nights", "occupancy", "operationDate"].includes(k)) {
           const days = daysInYear(
             Number(finance.operationDate?.slice(0, 4)) ||
@@ -334,7 +379,9 @@ function bind() {
   };
   document.getElementById("program").onchange = (e) => {
     programId = e.target.value;
-    includeRepair = false;
+    includeRepair =
+      project.programs.find((program) => program.id === programId)
+        ?.repairAllowed === true;
     render();
   };
   const repair = document.getElementById("include-repair");
