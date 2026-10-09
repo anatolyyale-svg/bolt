@@ -306,8 +306,8 @@ function refinePresentation(unit, result, program, payment, floor) {
   const summary = document.querySelector(".summary");
   const capSummary = capitalizationData(unit);
   const rentalIncome = incomeHorizon != null ? cumulativeIncome(finance, incomeHorizon) : null;
-  const combinedResult = Number.isFinite(capitalization.withRepairValue) && Number.isFinite(capitalization.purchasePrice) && Number.isFinite(capitalization.repairCost) && Number.isFinite(rentalIncome)
-    ? capitalization.withRepairValue + rentalIncome - capitalization.purchasePrice - capitalization.repairCost
+  const combinedResult = Number.isFinite(capSummary.withRepairValue) && Number.isFinite(capSummary.purchasePrice) && Number.isFinite(capSummary.repairCost) && Number.isFinite(rentalIncome)
+    ? capSummary.withRepairValue + rentalIncome - capSummary.purchasePrice - capSummary.repairCost
     : null;
   const percentageLabel = (value) => Number.isFinite(value) ? `${formatNumber(value)} %` : missing;
   const gainLabel = (gain, percent) => `${resultValue(gain)} · ${percentageLabel(percent)}`;
