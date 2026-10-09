@@ -122,6 +122,32 @@ const dateLabel = (value) => {
         year: "numeric",
       }).format(date);
 };
+function addMonths(value, months) {
+  if (!value || !Number.isInteger(months) || months < 0) return null;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.valueOf())) return null;
+  const day = date.getDate();
+  date.setDate(1);
+  date.setMonth(date.getMonth() + months);
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  date.setDate(Math.min(day, lastDay));
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+function finalPaymentInfo(program) {
+  if (!program || !Number.isInteger(program.months))
+    return { month: null, text: `Дата финального платежа: ${missing}` };
+  const month = Number.isInteger(program.finalMonth)
+    ? program.finalMonth
+    : program.months + 1;
+  const date = addMonths(finance.purchaseDate, Math.max(0, month - 1));
+  return {
+    month,
+    text: date
+      ? `Дата финального платежа: ${dateLabel(date)} · ${month}-й месяц.`
+      : `Дата финального платежа: ${missing} · ${month}-й месяц.`,
+  };
+}
 const sectionHeading = (number, title) =>
   `<div class="reference-heading"><h2>${title}</h2></div>`;
 const programText = (program) =>
@@ -227,9 +253,7 @@ function refinePresentation(unit, result, program, payment, floor) {
   const notes = document.querySelectorAll(".payment-note");
   notes[0].textContent = program?.conditions || missing;
   const finalNote = document.querySelector(".payment-note.blue");
-  finalNote.textContent = program?.finalMonth != null
-    ? "Финальный платёж — на " + program.finalMonth + "-м месяце."
-    : "Дата финального платежа: " + missing;
+  finalNote.textContent = finalPaymentInfo(program).text;
   const repairDescription = document.querySelector(".repair-card > p");
   if (repairDescription) repairDescription.innerHTML = `База рассрочки: <strong>${money(payment.total)}</strong> · ${includeRepair ? "с ремонтом" : "без ремонта"}`;
   const horizon = document.getElementById("horizon");
