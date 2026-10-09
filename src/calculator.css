@@ -460,6 +460,15 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 #overview .hero-copy .hero-note,
 #overview .hero-copy .eyebrow { color:rgba(255,255,255,.88); }
 #overview .hero-copy h1 { color:#fff; }
+.stats {
+  position:relative;
+  left:50%;
+  width:100vw;
+  transform:translateX(-50%);
+  border-radius:0;
+  border-left:0;
+  border-right:0;
+}
 @media (max-width:760px) {
   #overview.hero { min-height:590px; padding:0; }
   #overview .hero-copy { top:64px; left:0; right:0; }
