@@ -84,14 +84,28 @@ export function normalizeProject(input) {
     };
   });
   const floors = [];
-  for (const plan of input.plans?.floor_plans || [])
-    for (const number of Array.isArray(plan.floors) ? plan.floors : [])
+  for (const plan of input.plans?.floor_plans || []) {
+    const explicitFloors = Array.isArray(plan.floors) ? plan.floors : [];
+    const range = plan.filename_floor_range;
+    const rangeFloors =
+      Number.isInteger(range?.from) && Number.isInteger(range?.to) &&
+      range.to >= range.from
+        ? Array.from({ length: range.to - range.from + 1 }, (_, index) =>
+            range.from + index,
+          )
+        : [];
+    for (const number of [...new Set([...explicitFloors, ...rangeFloors])])
       floors.push({
         block: plan.block,
         number,
-        image: driveImage(plan.clean_png || plan.file),
+        image: driveImage(
+          plan.clean_png ||
+            (plan.file?.mime_type?.startsWith("image/") ? plan.file : null),
+        ),
         source: plan.file?.google_drive_file_id || null,
+        rangeUnconfirmed: !explicitFloors.includes(number),
       });
+  }
   return {
     ...emptyProject,
     name: input.project.name_ru || input.project.name || null,
@@ -102,6 +116,7 @@ export function normalizeProject(input) {
       .map((item) => driveImage(item))
       .filter(Boolean),
     seaDistance: input.construction?.distance_to_sea_m ?? null,
+    updatedAt: input.inventory?.snapshot_date || null,
     completionDate:
       input.construction?.completion_label ||
       input.construction?.completion_date ||
@@ -109,6 +124,7 @@ export function normalizeProject(input) {
     presentation: input.links?.presentation?.url || null,
     camera: null,
     location: {
+      city: input.location?.city || input.project?.city || null,
       address:
         [input.location?.street, input.location?.building_number]
           .filter(Boolean)
@@ -117,7 +133,13 @@ export function normalizeProject(input) {
       lng: input.location?.longitude ?? null,
       infrastructure: [],
     },
-    history: [],
+    history: (input.price_history?.snapshots || []).map((snapshot) => ({
+      date: snapshot.date || null,
+      price: snapshot.price_per_m2_min ?? null,
+      priceMax: snapshot.price_per_m2_max ?? null,
+      count: snapshot.apartment_count ?? null,
+      source: snapshot.source_id || null,
+    })),
     apartments,
     floors,
     programs: (input.installment_programs || []).map((program) => ({
@@ -125,6 +147,7 @@ export function normalizeProject(input) {
       block: program.block ?? null,
       name: `Блок ${program.block}: ${program.down_payment_percent}% / ${program.installment_share_percent}% / ${program.final_payment_percent}%`,
       downPercent: program.down_payment_percent,
+      installmentPercent: program.installment_share_percent,
       months: program.monthly_payment_count,
       finalPercent: program.final_payment_percent,
       finalMonth: program.final_payment_month ?? null,

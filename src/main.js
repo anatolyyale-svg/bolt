@@ -33,7 +33,8 @@ let project = validateProject(centropolisSource),
   },
   programId = "",
   includeRepair = false,
-  occupancyMode = "percent";
+  occupancyMode = "percent",
+  roiMode = "rent";
 const labels = {
   price: "Стоимость квартиры",
   area: "Площадь, м²",
@@ -127,7 +128,7 @@ function metrics(result) {
     ],
   ];
 }
-function render() {
+function renderLegacy() {
   const a = apartment(),
     r = roi(finance),
     p = project.programs.find((p) => p.id === programId),
@@ -302,6 +303,201 @@ ${
     )}<div class="result-row"><span>Дата сдачи</span><strong>${display(project.completionDate)}</strong></div><button id="pdf" class="button full">Инвестиционный PDF ↗</button><small>По текущим параметрам расчёта</small></aside></div></section>
 <section class="section two-col"><article class="card"><div class="eyebrow">ЛОКАЦИЯ</div><h2>Всё рядом</h2>${Number.isFinite(project.location?.lat) && Number.isFinite(project.location?.lng) ? `<iframe title="Расположение комплекса в Google Maps" loading="lazy" referrerpolicy="no-referrer" src="https://maps.google.com/maps?q=${project.location.lat},${project.location.lng}&output=embed"></iframe><p>${display(project.location.address)}</p>` : `<div class="asset-placeholder"><span>⌖</span><strong>Расположение комплекса</strong><small>${missing}</small></div>`}${(project.location?.infrastructure || []).map((i) => `<p>${escape(i.name)} · ${display(i.distance)}</p>`).join("")}</article><article class="card"><div class="eyebrow">ДИНАМИКА СТОИМОСТИ</div><h2>История проекта</h2>${project.history.length ? `<div class="result-row"><span>Стартовая цена</span><strong>${money(project.history[0].price)}</strong></div><div class="result-row"><span>Текущая цена</span><strong>${money(project.history.at(-1).price)}</strong></div>${project.history.map((h) => `<div class="result-row"><span>${escape(h.date)}</span><strong>${money(h.price)}</strong></div>`).join("")}` : `<div class="empty"><span>↗</span><h3>История цен появится здесь</h3><p>${missing} · Только подтверждённые исторические сведения.</p></div>`}</article></section>
 <section class="source-section"><div><h3>Один шаблон. Данные вашего проекта.</h3><p>Загрузите JSON застройщика или подключите HTTPS-источник. Компоненты обновятся автоматически.</p></div><div class="source-controls"><label class="outline upload">Загрузить JSON<input id="upload" type="file" accept="application/json"></label><input id="source-url" type="url" placeholder="HTTPS URL источника" value="${escape(project.source || "")}"><button id="connect" class="outline">Подключить</button><button id="refresh" class="outline" ${!project.source ? "disabled" : ""}>Обновить</button>${safe(project.presentation) ? `<a class="outline" target="_blank" rel="noopener" href="${escape(safe(project.presentation))}">Презентация ↗</a>` : ""}</div><p id="source-message" role="status"></p></section></main><footer><a class="brand" href="#">ESTATE</a><span>Инвестиционные решения на основе данных</span><span>Данные проекта требуют подтверждения источником</span></footer>`;
+  bind();
+}
+
+const dateLabel = (value) => {
+  if (!value) return missing;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.valueOf())
+    ? display(value)
+    : new Intl.DateTimeFormat("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(date);
+};
+const sectionHeading = (number, title) =>
+  `<div class="reference-heading"><span>${number}</span><h2>${title}</h2></div>`;
+const programText = (program) =>
+  program
+    ? `Первоначальный взнос ${program.downPercent}% · ${program.installmentPercent ?? missing} / ${program.months} мес. · ${program.finalPercent}% финал/ипотека`
+    : missing;
+const unitContext = (a) =>
+  a
+    ? `Блок ${display(a.block)} · этаж ${display(a.floor)} · №${display(a.number)} · ${money(a.price)}`
+    : missing;
+const unitRate = (value, suffix = "") =>
+  Number.isFinite(value) ? `${new Intl.NumberFormat("ru-RU").format(value)} ${suffix}` : missing;
+const yearsLabel = (years) => {
+  if (!Number.isFinite(years)) return missing;
+  const totalMonths = Math.max(0, Math.round(years * 12));
+  return `${Math.floor(totalMonths / 12)} лет ${totalMonths % 12} мес.`;
+};
+const expenseLine = (label, value, tone = "") =>
+  `<div class="finance-line ${tone}"><span>${label}</span><strong>${value}</strong></div>`;
+const resultValue = (value) => (Number.isFinite(value) ? money(value) : missing);
+const resultExpense = (label, value) =>
+  expenseLine(label, Number.isFinite(value) ? `− ${money(value)}` : missing, "expense");
+
+function placeSharedSummary() {
+  const main = document.querySelector("#app main");
+  const firstSection = main?.querySelector("#investment-model");
+  const sourceSection = main?.querySelector(".source-section");
+  const summary = main?.querySelector("#investment .summary");
+  if (!main || !firstSection || !sourceSection || !summary) return;
+  const layout = document.createElement("div");
+  layout.className = "page-layout";
+  const pageMain = document.createElement("div");
+  pageMain.className = "page-main";
+  summary.remove();
+  main.insertBefore(layout, firstSection);
+  let section = firstSection;
+  while (section && section !== sourceSection) {
+    const next = section.nextElementSibling;
+    pageMain.append(section);
+    section = next;
+  }
+  layout.append(pageMain, summary);
+}
+
+function placeTypeTabs(options) {
+  const catalog = document.querySelector("#catalog");
+  const filtersPanel = catalog?.querySelector(".filters");
+  if (!filtersPanel) return;
+  const tabs = document.createElement("div");
+  tabs.className = "type-tabs";
+  for (const [value, label] of options) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `type-tab${filters.type === value ? " active" : ""}`;
+    button.textContent = label;
+    button.onclick = () => {
+      filters.type = value;
+      render();
+    };
+    tabs.append(button);
+  }
+  filtersPanel.before(tabs);
+}
+
+function render() {
+  const a = apartment();
+  const r = roi(finance);
+  const p = project.programs.find((program) => program.id === programId);
+  const ip = installment(a?.price, p, finance.repair, includeRepair);
+  const floor = project.floors.find(
+    (item) => item.block === a?.block && item.number === a?.floor,
+  );
+  const availablePrograms = applicablePrograms(project, a);
+  const floorUnits = a
+    ? project.apartments.filter(
+        (unit) => unit.block === a.block && unit.floor === a.floor,
+      )
+    : [];
+  const rows = project.apartments
+    .filter(
+      (unit) =>
+        (!filters.status || unit.status === filters.status) &&
+        (!filters.block || String(unit.block) === filters.block) &&
+        (!filters.type || (unit.typeKey || unit.type) === filters.type) &&
+        `${unit.number} ${unit.type} ${unit.block}`
+          .toLowerCase()
+          .includes(filters.search.toLowerCase()),
+    )
+    .sort((left, right) =>
+      filters.sort === "price"
+        ? (left.price ?? Infinity) - (right.price ?? Infinity)
+        : filters.sort === "area"
+          ? (left.area ?? Infinity) - (right.area ?? Infinity)
+          : String(left.number).localeCompare(String(right.number), "ru", {
+              numeric: true,
+            }),
+    );
+  const minimum = project.apartments
+    .filter((unit) => unit.status === "available" && Number.isFinite(unit.pricePerMeter))
+    .map((unit) => unit.pricePerMeter);
+  const typeMap = new Map(
+    project.apartments.map((unit) => [unit.typeKey || unit.type, unit.typeKey || unit.type]),
+  );
+  const typeOrder = ["studio", "one_bedroom", "two_bedroom"];
+  const typeOptions = [
+    ["", "Все"],
+    ...[
+      ...typeOrder.filter((value) => typeMap.has(value)),
+      ...[...typeMap.keys()].filter((value) => !typeOrder.includes(value)),
+    ].map((value) => [value, typeLabel(typeMap.get(value))]),
+  ];
+  const history = project.history || [];
+  const historySnapshot = history.at(-1);
+  const map =
+    Number.isFinite(project.location?.lat) && Number.isFinite(project.location?.lng)
+      ? `<iframe title="Расположение комплекса в Google Maps" loading="lazy" referrerpolicy="no-referrer" src="https://maps.google.com/maps?q=${project.location.lat},${project.location.lng}&output=embed"></iframe>`
+      : `<div class="asset-placeholder map-placeholder"><span>⌖</span><strong>Расположение комплекса</strong><small>${missing}</small></div>`;
+  const apartmentTable = rows
+    .map(
+      (unit) =>
+        `<tr class="${selected === unit.id ? "selected" : unit.status}"><td><input aria-label="Сравнить квартиру ${escape(unit.number)}" type="checkbox" data-compare="${escape(unit.id)}" ${compare.has(unit.id) ? "checked" : ""}></td><td>${display(unit.block)}</td><td>${display(unit.floor)}</td><td><button class="row-select" data-select="${escape(unit.id)}" ${unit.status !== "available" ? "disabled" : ""}>${display(unit.number)}</button></td><td>${display(unit.type)}</td><td>${display(unit.direction)}</td><td>${display(unit.area)}</td><td>${money(unit.pricePerMeter)}</td><td>${money(unit.price)}</td><td><span class="badge">${selected === unit.id ? "Выбрана" : { available: "Свободна", reserved: "Забронирована", sold: "Продана" }[unit.status] || missing}</span></td></tr>`,
+    )
+    .join("");
+  const comparison =
+    compare.size > 1
+      ? `<div class="comparison"><h3>Сравнение квартир</h3><div class="comparison-grid">${project.apartments
+          .filter((unit) => compare.has(unit.id))
+          .map(
+            (unit) =>
+              `<div class="card"><h3>Квартира ${display(unit.number)}</h3><p>${display(unit.type)} · ${display(unit.area)} м²</p><strong>${money(unit.price)}</strong><p>Блок ${display(unit.block)} · этаж ${display(unit.floor)}</p><p>Окна: ${display(unit.direction)}</p></div>`,
+          )
+          .join("")}</div></div>`
+      : "";
+  const repairBase = ip.total;
+  const monthlyPart =
+    Number.isFinite(ip.total) && Number.isFinite(ip.down) && Number.isFinite(ip.final)
+      ? ip.total - ip.down - ip.final
+      : null;
+  const finalNote = p
+    ? `Финальный платёж составляет ${p.finalPercent}% от базы рассрочки. Срок ежемесячной части: ${p.months} мес.`
+    : missing;
+  const roiTabs = `<div class="roi-tabs"><button class="roi-tab ${roiMode === "rent" ? "active" : ""}" data-roi-mode="rent">Доход от аренды</button><button class="roi-tab" disabled>Капитализация</button><button class="roi-tab" disabled>Капитализация + доход от аренды</button><span class="roi-auto">auto</span></div>`;
+  const formFields = Object.entries(labels)
+    .map(
+      ([key, label]) =>
+        `<label>${label}<input data-finance="${key}" type="${key.includes("Date") ? "date" : "number"}" ${key.includes("Date") ? "" : 'min="0" step="any"'} value="${escape(finance[key] ?? "")}" placeholder="${missing}" ${key === "indexation" && !finance.indexationEnabled ? "disabled" : ""}></label>`,
+    )
+    .join("");
+  const netLabel = Number.isFinite(r.net) ? money(r.net) : missing;
+  const roiLabel = Number.isFinite(r.roi) ? `${r.roi.toFixed(2)} %` : missing;
+  const paybackLabel = r.paybackMissing?.length
+    ? missing
+    : r.payback == null
+      ? "Не достигнута в горизонте модели"
+      : yearsLabel(r.payback);
+  const summaryRows = [
+    expenseLine("Цена квартиры", money(finance.price)),
+    expenseLine("Общая инвестиция", resultValue(r.investment)),
+    expenseLine("Чистая прибыль / год", netLabel, "positive"),
+    expenseLine("ROI (год 1)", roiLabel, "accent"),
+    expenseLine("Сдача", display(project.completionDate)),
+    expenseLine("Окупаемость", paybackLabel),
+  ].join("");
+  const summaryMarkup = `<aside class="card summary sticky-summary"><div class="eyebrow">ИТОГ</div><div class="summary-unit"><strong>${display(project.name)}</strong><span>${a ? `Блок ${display(a.block)} · этаж ${display(a.floor)} · №${display(a.number)}` : missing}</span><span>${a ? `${display(a.type)} · ${display(a.area)} м²` : missing}</span><strong>${money(a?.price)}</strong></div><div class="summary-images"><div>${image(a?.plan, "Планировка квартиры")}<small>Планировка квартиры</small></div><div>${image(floor?.image, "Позиция на этаже")}<small>Позиция на этаже</small></div></div>${summaryRows}<button id="pdf" class="button full">Инвестиционный PDF ↗</button><small class="summary-note">Пересчитывается автоматически при изменении любого поля.</small></aside>`;
+  document.querySelector("#app").innerHTML = `
+<header><a class="brand" href="#">ESTATE<span>INVESTMENT PLATFORM</span></a><nav><a href="#overview">О проекте</a><a href="#catalog">Квартиры</a><a href="#plans">Планировки</a><a href="#investment">Инвестиции</a></nav><button id="pdf-top" class="outline">Сформировать PDF ↗</button></header>
+<main>
+<section id="overview" class="hero"><div class="hero-copy"><div class="eyebrow">НЕДВИЖИМОСТЬ · ИНВЕСТИЦИИ</div><h1>${project.name ? escape(project.name) : "Ваш следующий<br>инвестиционный проект"}</h1><p>${display(project.description)}</p><div class="actions"><a class="button" href="#catalog">Выбрать квартиру ↗</a><a class="text-link" href="#investment">Рассчитать инвестицию →</a></div><div class="hero-note">Единый взгляд на объект, квартиру и финансовую модель</div></div><div class="hero-visual">${image(project.render, "Архитектурный рендер проекта")}<span class="image-caption">МАТЕРИАЛЫ ЗАСТРОЙЩИКА</span></div></section>
+<div class="stats">${[["Свободные квартиры", project.apartments.filter((unit) => unit.status === "available").length], ["Расстояние до моря", project.seaDistance ? `${project.seaDistance} м` : null], ["Минимальная цена за м²", minimum.length ? money(Math.min(...minimum)) : null], ["Дата сдачи", project.completionDate]].map(([key, value]) => `<div><small>${key}</small><strong>${display(value)}</strong></div>`).join("")}</div>
+${safe(project.camera) ? `<section class="reference-section camera-section"><div class="camera-copy"><span class="live-badge">● LIVE</span><h2>Камера строительной площадки</h2><p>Следите за ходом строительства в реальном времени.</p><a class="button" target="_blank" rel="noopener" href="${escape(safe(project.camera))}">Открыть live-камеру ↗</a></div><div class="camera-preview">${image(project.cameraPreview, "Онлайн-камера")}</div></section>` : ""}
+<section class="section" id="catalog"><div class="section-head"><div><div class="eyebrow">01 / ВЫБОР ОБЪЕКТА</div><h2>Свободные квартиры</h2></div><span class="muted">Актуальность: ${display(project.updatedAt)}</span></div><div class="filters"><label class="search">Поиск<input id="search" value="${escape(filters.search)}" placeholder="Номер, блок или тип квартиры"></label><label>Блок<select id="block"><option value="">Все блоки</option>${[...new Set(project.apartments.map((unit) => unit.block))].map((block) => `<option ${String(block) === filters.block ? "selected" : ""}>${escape(block)}</option>`).join("")}</select></label><label>Тип квартиры<select id="type"><option value="">Все типы</option>${[...new Map(project.apartments.map((unit) => [unit.typeKey || unit.type, unit.typeKey || unit.type])).entries()].map(([value, label]) => `<option value="${escape(value)}" ${filters.type === value ? "selected" : ""}>${escape(typeLabel(label))}</option>`).join("")}</select></label><label>Статус<select id="status">${[["available", "Свободна"], ["reserved", "Забронирована"], ["sold", "Продана"], ["", "Все статусы"]].map(([value, label]) => `<option value="${value}" ${filters.status === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><label>Сортировка<select id="sort">${[["number", "По номеру"], ["price", "По стоимости"], ["area", "По площади"]].map(([value, label]) => `<option value="${value}" ${filters.sort === value ? "selected" : ""}>${label}</option>`).join("")}</select></label></div><div class="table-wrap"><div class="table-scroll"><table><thead><tr>${["Сравнить", "Блок", "Этаж", "Квартира", "Тип", "Окна", "Площадь", "Цена / м²", "Стоимость", "Статус"].map((label) => `<th>${label}</th>`).join("")}</tr></thead><tbody>${apartmentTable}</tbody></table></div>${!rows.length ? `<div class="empty"><span>⌕</span><h3>${project.apartments.length ? "Нет квартир по выбранным условиям" : "Каталог ожидает данные проекта"}</h3><p>${project.apartments.length ? "Измените фильтры, чтобы увидеть другие квартиры." : `${missing} · Подключите источник или загрузите JSON проекта.`}</p></div>` : ""}</div>${comparison}</section>
+<section class="section reference-section" id="investment-model">${sectionHeading("01", "Инвестиционная модель")}<div class="model-grid"><article class="model-card blue-edge"><h3>Рост капитализации</h3><ul><li>Историческая динамика: ${missing}</li><li>Подтверждённый прогноз: ${missing}</li><li>Период сравнения: ${missing}</li></ul></article><article class="model-card green-edge"><h3>Пассивный доход</h3><ul><li>Ставка: ${unitRate(finance.nightly, `${project.currency || "USD"} / ночь`)}</li><li>Загрузка: ${display(finance.occupancy)}% · ${display(finance.nights)} ночей в год</li><li>Управление: ${display(finance.management)}% после НДС</li></ul></article></div></section>
+<section class="section reference-section" id="expenses">${sectionHeading("02", "Расходы инвестора")}<div class="expense-grid"><article><small>НДС</small><strong>${Number.isFinite(finance.vat) ? `${finance.vat}% от общей выручки` : missing}</strong></article><article><small>УПРАВЛЯЮЩАЯ КОМПАНИЯ</small><strong>${Number.isFinite(finance.management) ? `${finance.management}% после НДС` : missing}</strong></article><article><small>НАЛОГ НА ДОХОД ОТ АРЕНДЫ</small><strong>${Number.isFinite(finance.tax) ? `${finance.tax}% с доли собственника` : missing}</strong></article><article><small>ОБСЛУЖИВАНИЕ КОМПЛЕКСА</small><strong>${Number.isFinite(finance.maintenancePerM2) ? `${finance.maintenancePerM2} ${project.currency || "USD"} за м² в месяц` : missing}</strong></article></div><div class="info-strip">Все расчёты ROI ниже автоматически учитывают эти расходы.</div></section>
+<section class="section reference-section" id="location">${sectionHeading("03", "Локация комплекса")}<div class="location-card">${map}<div class="location-meta"><div><small>ГОРОД</small><strong>${display(project.location?.city)}</strong></div><div><small>ДО МОРЯ</small><strong>${project.seaDistance ? `${project.seaDistance} м · первая линия` : missing}</strong></div><div><small>АДРЕС</small><strong>${display(project.location?.address)}</strong></div></div></div></section>
+<section class="section reference-section" id="history">${sectionHeading("04", "История роста стоимости")}<div class="history-card"><div class="history-card-head"><h3>История роста стоимости</h3><strong>${missing}</strong></div>${historySnapshot ? `<div class="history-snapshot"><div><small>${dateLabel(historySnapshot.date)}</small><span>Минимальная цена снимка</span><strong>${money(historySnapshot.price)} / м²</strong></div><div class="history-warning">${missing}<br><small>Нужен второй подтверждённый ценовой снимок для расчёта роста.</small></div></div>` : `<div class="empty"><span>↗</span><h3>${missing}</h3><p>Исторические показатели появятся после загрузки подтверждённых снимков.</p></div>`}</div></section>
+<section class="section" id="plans">${sectionHeading("05", "Квартира и план этажа")}<div class="two-col"><article class="card"><div class="card-top"><h3>Ваша квартира</h3><span>ПЛАНИРОВКА</span></div>${image(a?.plan, "Планировка квартиры")}${a?.illustrativeLayout ? `<p class="asset-note">Типовая планировка. Соответствие конкретной квартире не подтверждено.</p>` : ""}<div class="detail-grid">${[["Номер", a?.number], ["Блок", a?.block], ["Этаж", a?.floor], ["Тип", a?.type], ["Площадь", a?.area], ["Стоимость", a ? money(a.price) : null]].map(([key, value]) => `<div><small>${key}</small><strong>${display(value)}</strong></div>`).join("")}</div></article><article class="card"><div class="card-top"><h3>Расположение на этаже</h3><span>ИНТЕРАКТИВНЫЙ ПЛАН</span></div><div class="floor-plan">${image(floor?.image, "План этажа")}</div>${floor?.rangeUnconfirmed ? `<p class="asset-note">План найден для диапазона этажей. Точная привязка к этажу требует подтверждения.</p>` : ""}${floorUnits.length ? `<div class="floor-units"><small>Квартиры на этаже</small>${floorUnits.map((unit) => `<button class="floor-unit ${selected === unit.id ? "selected" : unit.status}" data-select="${escape(unit.id)}">${display(unit.number)}</button>`).join("")}</div>` : ""}<div class="legend"><span>● Свободна</span><span class="yellow">● Выбрана</span><span class="muted">● Забронирована</span><span class="red">● Продана</span></div></article></div></section>
+<section class="section" id="installment">${sectionHeading("06", "Калькулятор рассрочки")}<div class="calc-shell"><div class="stage-tabs"><span class="active">01 · ВЫБОР ПЛАНА</span><span>02 · СТРУКТУРА ПЛАТЕЖЕЙ</span><span>03 · ГРАФИК ПЛАТЕЖЕЙ</span></div><div class="calc-context"><span>УСЛОВИЯ</span><strong>Юнит: ${unitContext(a)}</strong></div><div class="program-box"><strong>Блок ${display(a?.block)} · подтверждённые сценарии рассрочки</strong><label class="program-select-label">Программа рассрочки<select id="program"><option value="">Выберите подтверждённую программу</option>${availablePrograms.map((program) => `<option value="${escape(program.id)}" ${program.id === programId ? "selected" : ""}>${escape(programText(program))}</option>`).join("")}</select></label><p class="calc-note">${finalNote}</p></div>${p?.repairAllowed ? `<div class="repair-card"><label class="check"><input id="include-repair" type="checkbox" ${includeRepair ? "checked" : ""}><span><strong>Включить стоимость ремонта в рассрочку</strong><small>Стоимость ремонта берётся из ROI-калькулятора (${unitRate(finance.repairPerM2, `${project.currency || "USD"} /м²`)} × площадь). Значение можно изменить в разделе ROI.</small></span></label><p>База рассрочки: <strong>${money(repairBase)}</strong> · включая ремонт · Общая стоимость ремонта: <strong>${money(finance.repair)}</strong></p></div>` : ""}<div class="payment-grid"><div class="payment-cell highlight"><span>Первоначальный взнос (${display(p?.downPercent)}%)</span><strong>${money(ip.down)}</strong></div><div class="payment-cell"><span>Рассрочка (${display(p?.installmentPercent)}% / ${display(p?.months)} мес.)</span><strong>${money(monthlyPart)}</strong></div><div class="payment-cell highlight"><span>Ежемесячный платёж</span><strong>${money(ip.monthly)}</strong></div><div class="payment-cell"><span>Финальный платёж / ипотека (${display(p?.finalPercent)}%)</span><strong>${money(ip.final)}</strong></div></div><p class="payment-note">Финальный платёж вносится единовременно либо переоформляется в ипотеку — на выбор клиента.</p><p class="payment-note blue">${finalNote}</p><div class="payment-timeline"><div><i></i><strong>${display(p?.downPercent)}%</strong><small>СЕГОДНЯ</small></div><hr><div><i></i><strong>${display(p?.installmentPercent)}%</strong><small>${display(p?.months)} МЕС.</small></div><hr><div><i></i><strong>${display(p?.finalPercent)}%</strong><small>ФИНАЛЬНЫЙ ПЛАТЁЖ</small></div></div>${ip.missing ? `<p class="notice">${missing}: ${ip.missing.map(escape).join(", ")}</p>` : ""}</div></section>
+<section class="section" id="investment">${sectionHeading("07", "ROI-калькулятор")}<div class="roi-shell">${roiTabs}<div class="roi-layout"><div class="roi-main"><div class="roi-form-card"><div class="form-grid">${formFields}</div><label class="check"><input type="checkbox" id="indexation" ${finance.indexationEnabled ? "checked" : ""}>Учитывать индексацию цены за ночь</label><p class="model-note">Расчёт использует подтверждённые параметры проекта. Рост стоимости недвижимости в ROI не включён без исторических данных.</p></div><div class="roi-results"><h3>Финансовые результаты</h3>${r.missing ? `<p class="notice">${missing}: ${r.missing.map((key) => escape(labels[key] || key)).join(", ")}</p>` : ""}${expenseLine("Стоимость квартиры", resultValue(r.investment ? finance.price : null))}${expenseLine("Стоимость ремонта", money(finance.repair))}${expenseLine("Общая инвестиция", resultValue(r.investment))}${expenseLine("Валовая выручка", resultValue(r.gross))}${resultExpense("НДС", r.vat)}${expenseLine("Доход после НДС", resultValue(r.afterVat))}${resultExpense("Управление", r.management)}${expenseLine("Доход собственника", resultValue(r.owner))}${resultExpense("Налог на доход", r.tax)}${resultExpense("Обслуживание", finance.maintenance)}${expenseLine("Чистая прибыль за год 1", netLabel, "highlight")}${expenseLine("ROI (год 1)", roiLabel, "highlight")}${expenseLine("Ожидание до сдачи", Number.isFinite(r.wait) ? `${Math.round(r.wait * 12)} мес.` : missing)}${expenseLine("Срок окупаемости (с даты покупки)", paybackLabel)}<label class="horizon-label">Накопленный доход · горизонт, лет<input id="horizon" type="number" min="1" max="100" step="1" placeholder="${missing}"></label><p id="cumulative" class="notice"></p></div></div><aside class="card summary sticky-summary"><div class="eyebrow">ИТОГ</div><div class="summary-unit"><strong>${display(project.name)}</strong><span>${a ? `Блок ${display(a.block)} · этаж ${display(a.floor)} · №${display(a.number)}` : missing}</span><span>${a ? `${display(a.type)} · ${display(a.area)} м²` : missing}</span><strong>${money(a?.price)}</strong></div><div class="summary-images"><div>${image(a?.plan, "Планировка квартиры")}<small>Планировка квартиры</small></div><div>${image(floor?.image, "Позиция на этаже")}<small>Позиция на этаже</small></div></div>${summaryRows}<button id="pdf" class="button full">Инвестиционный PDF ↗</button><small class="summary-note">Пересчитывается автоматически при изменении любого поля.</small></aside></div></div></section>
+<section class="source-section"><div><h3>Один шаблон. Данные вашего проекта.</h3><p>Загрузите JSON застройщика или подключите HTTPS-источник. Компоненты обновятся автоматически.</p></div><div class="source-controls"><label class="outline upload">Загрузить JSON<input id="upload" type="file" accept="application/json"></label><input id="source-url" type="url" placeholder="HTTPS URL источника" value="${escape(project.source || "")}"><button id="connect" class="outline">Подключить</button><button id="refresh" class="outline" ${!project.source ? "disabled" : ""}>Обновить</button>${safe(project.presentation) ? `<a class="outline" target="_blank" rel="noopener" href="${escape(safe(project.presentation))}">Презентация ↗</a>` : ""}</div><p id="source-message" role="status"></p></section></main><footer><a class="brand" href="#">ESTATE</a><span>Инвестиционные решения на основе данных</span><span>Данные проекта требуют подтверждения источником</span></footer>`;
+  placeTypeTabs(typeOptions);
+  placeSharedSummary();
   bind();
 }
 function bind() {

@@ -93,4 +93,10 @@ test("Centropolis source carries the confirmed project inputs", () => {
   assert.equal(project.apartments[0].repairPerM2, 900);
   assert.equal(project.finance.operationDate, "2029-05-30");
   assert.equal(project.completionDate, "Декабрь 2028");
+  assert.ok(project.floors.some((floor) => floor.block === "B" && floor.number === 13));
+  assert.ok(
+    project.floors.some(
+      (floor) => floor.block === "B" && floor.number === 13 && floor.rangeUnconfirmed,
+    ),
+  );
 });
