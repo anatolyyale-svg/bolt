@@ -510,6 +510,39 @@ input, select, button, table { font-size:13px; }
 .summary .finance-line > span { font-size:10px; letter-spacing:.06em; }
 .summary .finance-line > strong { font-size:22px; }
 .hero-copy .actions .text-link { font-size:16px; }
+
+/* Hero composition: centered title, low left-aligned actions. */
+#overview .hero-copy {
+  top:0;
+  bottom:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:0 48px;
+}
+#overview .hero-copy h1 {
+  width:100%;
+  max-width:none;
+  margin:0;
+  font-size:clamp(58px, 8vw, 118px);
+  letter-spacing:.035em;
+  line-height:1.05;
+  transform:scaleX(1.025);
+}
+#overview .hero-copy .actions {
+  position:absolute;
+  left:48px;
+  bottom:58px;
+  width:auto;
+  margin:0;
+  justify-content:flex-start;
+}
+@media (max-width:760px) {
+  #overview .hero-copy { padding:0 24px; }
+  #overview .hero-copy h1 { font-size:clamp(48px, 14vw, 70px); letter-spacing:.02em; }
+  #overview .hero-copy .actions { left:24px; bottom:38px; }
+}
 @media (max-width:760px) {
   .reference-heading h2 { font-size:30px; }
   .section-head h2 { font-size:28px; }
