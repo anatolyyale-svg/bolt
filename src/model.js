@@ -11,6 +11,7 @@ export const emptyProject = {
   camera: null,
   location: null,
   history: [],
+  investmentModel: null,
   apartments: [],
   floors: [],
   programs: [],
@@ -34,7 +35,8 @@ export function normalizeProject(input) {
   if (!input?.project || !Array.isArray(input.apartments)) return input;
   const rental = input.rental_model || {},
     renovation = input.renovation || {},
-    media = input.media || {};
+    media = input.media || {},
+    capitalization = input.investment_model?.capitalization || {};
   const rates = rental.nightly_rates || {};
   const layoutByType = new Map(
     (input.plans?.apartment_layouts || []).map((layout) => [
@@ -148,6 +150,12 @@ export function normalizeProject(input) {
       count: snapshot.apartment_count ?? null,
       source: snapshot.source_id || null,
     })),
+    investmentModel: {
+      annualGrowthPercent: capitalization.annual_growth_percent ?? null,
+      constructionGrowthNote: capitalization.construction_growth_note || null,
+      managementGrowthNote: capitalization.management_growth_note || null,
+      source: capitalization.source_id || null,
+    },
     apartments,
     floors,
     programs: (input.installment_programs || []).map((program) => ({

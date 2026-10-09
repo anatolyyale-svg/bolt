@@ -552,3 +552,54 @@ input, select, button, table { font-size:13px; }
   .stats strong { font-size:22px; }
   .summary .finance-line > strong { font-size:20px; }
 }
+
+/* Interaction and data labels. */
+.table-scroll table tbody tr[data-select-row] { cursor:pointer; transition:background .15s ease, box-shadow .15s ease; }
+.table-scroll table tbody tr[data-select-row]:hover td { background:#f7fbf8; }
+.table-scroll table tbody tr[data-select-row]:focus-visible { outline:2px solid var(--project-blue); outline-offset:-2px; }
+.table-scroll table tbody tr.selected td { background:var(--project-blue-soft); }
+.table-scroll table tbody tr.selected:hover td { background:#dff1f8; }
+.table-scroll table tbody tr.selected .row-select { color:var(--project-blue); font-weight:600; }
+.floor-units-heading { flex-basis:100%; display:flex; align-items:baseline; gap:7px; margin-bottom:2px; color:var(--project-muted); }
+.floor-units-heading span { font-size:12px; }
+.floor-units-heading strong { color:var(--project-ink); font-size:15px; font-weight:600; }
+
+/* Capitalisation card: one clear figure followed by two short, qualified points. */
+.growth-key { display:flex; align-items:baseline; gap:10px; margin:2px 0 16px; }
+.growth-key strong { color:var(--project-blue); font-size:34px; line-height:1; font-weight:600; letter-spacing:-.03em; }
+.growth-key span { color:var(--project-muted); font-size:12px; }
+.model-card .model-disclaimer { margin:16px 0 0; color:var(--project-muted); font-size:11px; line-height:1.55; }
+
+/* Shared numeric treatment keeps prices and percentages aligned without clipping. */
+.stats strong, .payment-cell strong, .finance-line strong, .summary-unit, .summary .finance-line { font-variant-numeric:tabular-nums lining-nums; }
+.payment-cell strong, .summary .finance-line strong { overflow-wrap:anywhere; word-break:normal; }
+.summary-unit h3, .summary-unit span, .summary-unit > small { overflow-wrap:anywhere; }
+
+/* Calm calculator rhythm at desktop and mobile widths. */
+.calc-shell { padding:32px; }
+.calc-kicker { margin-bottom:24px; }
+.calc-kicker > span:first-child { font-size:10px; padding:7px 10px; }
+.calc-kicker > span + span { font-size:12px; }
+.program-box { padding:24px; }
+.program-box > strong { font-size:14px; margin-bottom:18px; }
+.program-pill { min-height:112px; padding:17px 18px; }
+.program-top strong { font-size:20px; }
+.program-top > span, .program-term, .program-final { font-size:11px; }
+.repair-card { padding:20px 22px; }
+.payment-grid { margin-top:22px; }
+.payment-cell { padding:22px; }
+.payment-cell span { font-size:12px; }
+.payment-cell strong { font-size:clamp(20px,1.8vw,26px); }
+.payment-note { font-size:12px; }
+.payment-timeline { padding-top:26px; margin-top:28px; }
+.page-layout .summary { padding:22px; }
+.summary-heading { margin-bottom:2px; }
+.summary-unit { padding:14px 16px; }
+@media (max-width:760px) {
+  .calc-shell { padding:22px; }
+  .program-box { padding:18px; }
+  .program-pill { min-height:0; padding:14px; }
+  .payment-cell { padding:18px; }
+  .payment-cell strong { font-size:24px; }
+  .growth-key strong { font-size:30px; }
+}

@@ -17,6 +17,14 @@
       "official_project_website"
     ]
   },
+  "investment_model": {
+    "capitalization": {
+      "annual_growth_percent": 10,
+      "construction_growth_note": "Рост стоимости по мере строительства комплекса",
+      "management_growth_note": "Потенциальный дополнительный рост после объявления международной управляющей компании",
+      "source_id": "user_confirmed_scenario"
+    }
+  },
   "media": {
     "architectural_render": {
       "google_drive_file_id": "1-lojNDTmUvCMQk4FuRrPeBgoomkQkpIi",
