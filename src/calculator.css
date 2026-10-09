@@ -20,18 +20,40 @@ h1, h2, .reference-heading h2, .model-card h3, .history-card h3, .roi-results h3
 .reference-heading { gap:0; }
 
 /* The architectural render is a full-bleed project banner. */
-#overview.hero { display:block; padding-top:52px; }
-#overview .hero-copy { max-width:720px; }
+#overview.hero { position:relative; display:block; min-height:680px; padding:0; }
+#overview .hero-copy {
+  position:absolute;
+  z-index:3;
+  top:112px;
+  left:0;
+  max-width:720px;
+  color:#fff;
+}
 #overview .hero-visual {
   position:relative;
   left:50%;
   width:100vw;
   transform:translateX(-50%);
-  height:clamp(360px, 48vw, 680px);
-  margin-top:38px;
+  height:680px;
+  margin-top:0;
   border-radius:0;
 }
+#overview .hero-visual::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:linear-gradient(90deg, rgba(12,25,22,.76) 0%, rgba(12,25,22,.46) 38%, rgba(12,25,22,.08) 72%), linear-gradient(0deg, rgba(12,25,22,.26), transparent 42%);
+  pointer-events:none;
+}
 #overview .hero-visual img { object-position:center 35%; }
+#overview .hero-copy .eyebrow,
+#overview .hero-copy p,
+#overview .hero-copy .text-link,
+#overview .hero-copy .hero-note { color:rgba(255,255,255,.88); }
+#overview .hero-copy h1 { color:#fff; }
+#overview .hero-copy .hero-note { margin-top:32px; }
+#overview .hero-visual .image-caption { z-index:2; color:rgba(255,255,255,.8); }
 
 /* Match the generous, simple type selector from the supplied reference. */
 .type-tabs { gap:16px; margin:0 0 18px; }
@@ -51,8 +73,9 @@ h1, h2, .reference-heading h2, .model-card h3, .history-card h3, .roi-results h3
 .page-layout .finance-line { font-size:13px; }
 
 @media (max-width:760px) {
-  #overview.hero { padding-top:38px; }
-  #overview .hero-visual { height:clamp(260px, 70vw, 430px); margin-top:30px; }
+  #overview.hero { min-height:590px; }
+  #overview .hero-copy { top:64px; left:0; right:0; }
+  #overview .hero-visual { height:590px; }
   .type-tabs { gap:10px; }
   .type-tab { min-width:0; padding:14px 21px; border-radius:14px; font-size:17px; }
 }
@@ -426,4 +449,19 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 @media (max-width:760px) {
   .type-tabs { gap:10px; }
   .type-tab { min-width:0; padding:14px 21px; border-radius:14px; font-size:17px; }
+}
+
+/* Hero overlay wins over the legacy responsive rules above. */
+#overview.hero { display:block; position:relative; min-height:680px; padding:0; }
+#overview .hero-copy { position:absolute; top:112px; left:0; z-index:3; max-width:720px; }
+#overview .hero-visual { height:680px; margin-top:0; border-radius:0; }
+#overview .hero-copy p,
+#overview .hero-copy .text-link,
+#overview .hero-copy .hero-note,
+#overview .hero-copy .eyebrow { color:rgba(255,255,255,.88); }
+#overview .hero-copy h1 { color:#fff; }
+@media (max-width:760px) {
+  #overview.hero { min-height:590px; padding:0; }
+  #overview .hero-copy { top:64px; left:0; right:0; }
+  #overview .hero-visual { height:590px; }
 }
