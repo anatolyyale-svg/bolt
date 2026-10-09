@@ -95,6 +95,14 @@ test("Centropolis source carries the confirmed project inputs", () => {
   assert.equal(project.completionDate, "Декабрь 2028");
   assert.equal(project.investmentModel.annualGrowthPercent, 10);
   assert.match(project.investmentModel.constructionGrowthNote, /строительства/);
+  const aPrograms = project.programs.filter((program) => program.block === "A");
+  const bPrograms = project.programs.filter((program) => program.block === "B");
+  assert.deepEqual(aPrograms.map((program) => program.months), [60, 60, 60]);
+  assert.deepEqual(bPrograms.map((program) => program.months), [30, 30, 30]);
+  assert.deepEqual(
+    aPrograms.map((program) => [program.downPercent, program.installmentPercent, program.finalPercent]),
+    bPrograms.map((program) => [program.downPercent, program.installmentPercent, program.finalPercent]),
+  );
   assert.ok(project.floors.some((floor) => floor.block === "B" && floor.number === 13));
   assert.ok(
     project.floors.some(
