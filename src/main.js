@@ -33,7 +33,13 @@ let project = validateProject(centropolisSource),
   programId = "",
   includeRepair = false,
   occupancyMode = "percent",
-  incomeHorizon = 10;
+  incomeHorizon = 10,
+  roiMode = "rental";
+const capitalizationRates = Object.freeze({
+  excavation: 2100,
+  handoverWithoutRepair: 5500,
+  handoverWithRepair: 7000,
+});
 const labels = {
   price: "Стоимость квартиры",
   area: "Площадь, м²",
@@ -178,6 +184,69 @@ const formatNumber = (value) => Number.isFinite(value)
   ? new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(value)
   : missing;
 
+function capitalizationData(unit, minimumPricePerM2) {
+  const area = Number.isFinite(finance.area) ? finance.area : unit?.area;
+  const purchasePrice = Number.isFinite(finance.price) ? finance.price : unit?.price;
+  const repairPerM2 = Number.isFinite(finance.repairPerM2) ? finance.repairPerM2 : 900;
+  const repairCost = Number.isFinite(area) ? area * repairPerM2 : null;
+  const withoutRepairValue = Number.isFinite(area)
+    ? area * capitalizationRates.handoverWithoutRepair
+    : null;
+  const withRepairValue = Number.isFinite(area)
+    ? area * capitalizationRates.handoverWithRepair
+    : null;
+  const withoutRepairGain = Number.isFinite(withoutRepairValue) && Number.isFinite(purchasePrice)
+    ? withoutRepairValue - purchasePrice
+    : null;
+  const withRepairGain = Number.isFinite(withRepairValue) && Number.isFinite(purchasePrice) && Number.isFinite(repairCost)
+    ? withRepairValue - purchasePrice - repairCost
+    : null;
+  const percentage = (gain) => Number.isFinite(gain) && Number.isFinite(purchasePrice) && purchasePrice > 0
+    ? (gain / purchasePrice) * 100
+    : null;
+  return {
+    area,
+    purchasePrice,
+    repairPerM2,
+    repairCost,
+    withoutRepairValue,
+    withRepairValue,
+    withoutRepairGain,
+    withRepairGain,
+    withoutRepairPercent: percentage(withoutRepairGain),
+    withRepairPercent: percentage(withRepairGain),
+    minimumPricePerM2,
+  };
+}
+const capitalizationScenario = (title, value, gain, percent, note = "") =>
+  `<article class="capitalization-scenario"><div class="capitalization-scenario-title">${title}</div><strong>${resultValue(value)}</strong><span>Прирост: ${resultValue(gain)} · ${Number.isFinite(percent) ? `${formatNumber(percent)} %` : missing}</span>${note ? `<small>${note}</small>` : ""}</article>`;
+
+function updateCapitalizationView() {
+  const data = capitalizationData(apartment());
+  const rental = incomeHorizon != null ? cumulativeIncome(finance, incomeHorizon) : null;
+  const total = Number.isFinite(data.withRepairValue) && Number.isFinite(data.purchasePrice) && Number.isFinite(data.repairCost) && Number.isFinite(rental)
+    ? data.withRepairValue + rental - data.purchasePrice - data.repairCost
+    : null;
+  document.querySelectorAll("[data-cap-horizon]").forEach((element) => {
+    element.textContent = incomeHorizon != null ? `${incomeHorizon} лет` : missing;
+  });
+  document.querySelectorAll("[data-cap-rental]").forEach((element) => {
+    element.textContent = resultValue(rental);
+  });
+  document.querySelectorAll("[data-cap-total]").forEach((element) => {
+    element.textContent = resultValue(total);
+  });
+}
+
+function capitalizationPanelMarkup(unit) {
+  const data = capitalizationData(unit);
+  const rental = incomeHorizon != null ? cumulativeIncome(finance, incomeHorizon) : null;
+  const total = Number.isFinite(data.withRepairValue) && Number.isFinite(data.purchasePrice) && Number.isFinite(data.repairCost) && Number.isFinite(rental)
+    ? data.withRepairValue + rental - data.purchasePrice - data.repairCost
+    : null;
+  return `<section class="capitalization-panel"><div class="capitalization-panel-head"><div><h3>${roiMode === "capitalization-rental" ? "Капитализация и доход от аренды" : "Сценарии капитализации"}</h3><p>Прогнозные значения не являются гарантией доходности.</p></div><span class="capitalization-badge">СЦЕНАРИЙ</span></div><div class="capitalization-scenarios">${capitalizationScenario("Без ремонта · 5 500 $/м²", data.withoutRepairValue, data.withoutRepairGain, data.withoutRepairPercent)}${capitalizationScenario("С ремонтом · 7 000 $/м²", data.withRepairValue, data.withRepairGain, data.withRepairPercent, `В расчёте прироста учтён ремонт ${formatNumber(data.repairPerM2)} $/м².`)}</div>${roiMode === "capitalization-rental" ? `<div class="capitalization-rental-result"><div><span>Прогноз стоимости с ремонтом</span><strong>${resultValue(data.withRepairValue)}</strong></div><div><span>Накопленная чистая прибыль от аренды · <b data-cap-horizon>${incomeHorizon} лет</b></span><strong data-cap-rental>${resultValue(rental)}</strong></div><div class="capitalization-total"><span>Совокупный результат за вычетом покупки и ремонта</span><strong data-cap-total>${resultValue(total)}</strong></div></div><p class="capitalization-hint">Период аренды выбирается в поле «Накопленный доход» ниже. Доход начинается с даты сдачи квартиры в аренду.</p>` : ""}</section>`;
+}
+
 function financeField(key, title, unit = "", hint = "", controls = "") {
   const isDate = key.includes("Date");
   const value = isDate ? finance[key] || "" : numericDisplay(finance[key]);
@@ -269,6 +338,9 @@ function refinePresentation(unit, result, program, payment, floor) {
   document.getElementById("cumulative").textContent = incomeHorizon != null ? money(cumulativeIncome(finance, incomeHorizon)) : "";
   const resultPrice = document.querySelector(".roi-results > .finance-line");
   resultPrice.querySelector("strong").textContent = money(finance.price);
+  if (roiMode !== "rental") {
+    document.querySelector(".roi-tabs")?.insertAdjacentHTML("afterend", capitalizationPanelMarkup(unit));
+  }
   const unitPlan = document.querySelector("#plans article:first-child");
   if (!unit?.plan) unitPlan.querySelector(".asset-note")?.remove();
 }
@@ -364,8 +436,8 @@ function render() {
   const minimum = project.apartments
     .filter((unit) => unit.status === "available" && Number.isFinite(unit.pricePerMeter))
     .map((unit) => unit.pricePerMeter);
-  const history = project.history || [];
-  const historySnapshot = history.at(-1);
+  const currentMinimumPrice = minimum.length ? Math.min(...minimum) : null;
+  const cap = capitalizationData(a, currentMinimumPrice);
   const map =
     Number.isFinite(project.location?.lat) && Number.isFinite(project.location?.lng)
       ? `<iframe title="Расположение комплекса в Google Maps" loading="lazy" referrerpolicy="no-referrer" src="https://maps.google.com/maps?q=${project.location.lat},${project.location.lng}&output=embed"></iframe>`
@@ -394,7 +466,7 @@ function render() {
   const finalNote = p
     ? `Финальный платёж составляет ${p.finalPercent}% от базы рассрочки. Срок ежемесячной части: ${p.months} мес.`
     : missing;
-  const roiTabs = '<div class="roi-tabs"><span class="roi-tab active">Доход от аренды</span><button class="roi-tab" disabled title="[ТРЕБУЮТСЯ ДАННЫЕ] для расчёта капитализации">Капитализация</button><button class="roi-tab" disabled title="[ТРЕБУЮТСЯ ДАННЫЕ] для расчёта капитализации">Капитализация + аренда</button></div>';
+  const roiTabs = `<div class="roi-tabs"><button class="roi-tab${roiMode === "rental" ? " active" : ""}" data-roi-mode="rental">Доход от аренды</button><button class="roi-tab${roiMode === "capitalization" ? " active" : ""}" data-roi-mode="capitalization">Капитализация</button><button class="roi-tab${roiMode === "capitalization-rental" ? " active" : ""}" data-roi-mode="capitalization-rental">Капитализация + доход от аренды</button></div>`;
   const formFields = financeForm();
   const netLabel = Number.isFinite(r.net) ? money(r.net) : missing;
   const roiLabel = Number.isFinite(r.roi) ? `${r.roi.toFixed(2)} %` : missing;
@@ -421,7 +493,7 @@ ${safe(project.camera) ? `<section class="reference-section camera-section"><div
 <section class="section reference-section" id="investment-model">${sectionHeading("01", "Инвестиционная модель")}<div class="model-grid"><article class="model-card blue-edge"><h3>Рост капитализации</h3><ul><li>Историческая динамика: ${missing}</li><li>Подтверждённый прогноз: ${missing}</li><li>Период сравнения: ${missing}</li></ul></article><article class="model-card green-edge"><h3>Пассивный доход</h3><ul><li>Ставка: ${unitRate(finance.nightly, `${project.currency || "USD"} / ночь`)}</li><li>Загрузка: ${display(finance.occupancy)}% · ${display(finance.nights)} ночей в год</li><li>Управление: ${display(finance.management)}% после НДС</li></ul></article></div></section>
 <section class="section reference-section" id="expenses">${sectionHeading("02", "Расходы инвестора")}<div class="expense-grid"><article><small>НДС</small><strong>${Number.isFinite(finance.vat) ? `${finance.vat}% от общей выручки` : missing}</strong></article><article><small>УПРАВЛЯЮЩАЯ КОМПАНИЯ</small><strong>${Number.isFinite(finance.management) ? `${finance.management}% после НДС` : missing}</strong></article><article><small>НАЛОГ НА ДОХОД ОТ АРЕНДЫ</small><strong>${Number.isFinite(finance.tax) ? `${finance.tax}% с доли собственника` : missing}</strong></article><article><small>ОБСЛУЖИВАНИЕ КОМПЛЕКСА</small><strong>${Number.isFinite(finance.maintenancePerM2) ? `${formatNumber(finance.maintenancePerM2)} ${currencyLabel()}/м² в месяц` : missing}</strong></article></div><div class="info-strip">Все расчёты ROI ниже автоматически учитывают эти расходы.</div></section>
 <section class="section reference-section" id="location">${sectionHeading("03", "Локация комплекса")}<div class="location-card"><div class="map-frame">${map}${Number.isFinite(project.location?.lat) && Number.isFinite(project.location?.lng) ? `<a class="map-link" href="https://www.google.com/maps/search/?api=1&query=${project.location.lat},${project.location.lng}" target="_blank" rel="noopener">Открыть карту ${arrowIcon}</a>` : ""}</div><div class="location-meta"><div><small>ГОРОД</small><strong>${display(project.location?.city)}</strong></div><div><small>ДО МОРЯ</small><strong>${Number.isFinite(project.seaDistance) ? `${project.seaDistance} м` : missing}</strong></div><div><small>АДРЕС</small><strong>${display(project.location?.address)}</strong></div></div></div></section>
-<section class="section reference-section" id="history">${sectionHeading("04", "История роста стоимости")}<div class="history-card"><div class="history-card-head"><h3>История роста стоимости</h3><strong>${missing}</strong></div>${historySnapshot ? `<div class="history-snapshot"><div><small>${dateLabel(historySnapshot.date)}</small><span>Минимальная цена снимка</span><strong>${money(historySnapshot.price)} / м²</strong></div><div class="history-warning">${missing}<br><small>Нужен второй подтверждённый ценовой снимок для расчёта роста.</small></div></div>` : `<div class="empty"><span>${arrowIcon}</span><h3>${missing}</h3><p>Исторические показатели появятся после загрузки подтверждённых снимков.</p></div>`}</div></section>
+<section class="section reference-section" id="history">${sectionHeading("04", "История роста стоимости")}<div class="history-card"><div class="history-card-head"><h3>История роста стоимости</h3><span class="history-status">Прогнозный сценарий</span></div><div class="history-metrics"><article><small>НА ЭТАПЕ КОТЛОВАНА</small><strong>${money(capitalizationRates.excavation)} / м²</strong><span>Исходный ориентир</span></article><article><small>СЕГОДНЯ</small><strong>${Number.isFinite(cap.minimumPricePerM2) ? `${money(cap.minimumPricePerM2)} / м²` : missing}</strong><span>Минимальная цена среди свободных квартир</span></article><article><small>ПЕРЕДАЧА КЛЮЧЕЙ · БЕЗ РЕМОНТА</small><strong>${money(capitalizationRates.handoverWithoutRepair)} / м²</strong><span>Прогнозная стоимость</span></article><article><small>ПЕРЕДАЧА КЛЮЧЕЙ · С РЕМОНТОМ</small><strong>${money(capitalizationRates.handoverWithRepair)} / м²</strong><span>Прогнозная стоимость</span></article></div><div class="history-disclaimer">Прогнозные значения ориентировочные и не являются гарантией будущей доходности.</div><div class="history-unit-scenarios"><div class="history-unit-scenarios-head"><h3>${a ? `Сценарии для квартиры · ${display(a.number)} · ${formatNumber(cap.area)} м²` : "Сценарии капитализации"}</h3><span>Фактическая цена покупки: ${money(cap.purchasePrice)}</span></div><div class="capitalization-scenarios">${capitalizationScenario("Без ремонта", cap.withoutRepairValue, cap.withoutRepairGain, cap.withoutRepairPercent)}${capitalizationScenario("С ремонтом", cap.withRepairValue, cap.withRepairGain, cap.withRepairPercent, `Чистый прирост за вычетом ремонта ${formatNumber(cap.repairPerM2)} $/м²`)}</div></div></div></section>
 <section class="section" id="plans">${sectionHeading("05", "Квартира и план этажа")}<div class="two-col"><article class="card"><div class="card-top"><h3>Ваша квартира</h3><span>ПЛАНИРОВКА</span></div>${image(a?.plan, "Планировка квартиры")}${a?.illustrativeLayout ? `<p class="asset-note">Типовая планировка. Соответствие конкретной квартире не подтверждено.</p>` : ""}<div class="detail-grid">${[["Номер", a?.number], ["Блок", a?.block], ["Этаж", a?.floor], ["Тип", a?.type], ["Площадь", a?.area], ["Стоимость", a ? money(a.price) : null]].map(([key, value]) => `<div><small>${key}</small><strong>${display(value)}</strong></div>`).join("")}</div></article><article class="card"><div class="card-top"><h3>Расположение на этаже</h3><span>ИНТЕРАКТИВНЫЙ ПЛАН</span></div><div class="floor-plan">${image(floor?.image, "План этажа")}</div>${floor?.rangeUnconfirmed ? `<p class="asset-note">План найден для диапазона этажей. Точная привязка к этажу требует подтверждения.</p>` : ""}${floorUnits.length ? `<div class="floor-units"><div class="floor-units-heading"><span>Всего квартир на этаже:</span><strong>${floorUnits.length}</strong></div>${floorUnits.map((unit) => `<button class="floor-unit ${selected === unit.id ? "selected" : unit.status}" data-select="${escape(unit.id)}">${display(unit.number)}</button>`).join("")}</div>` : ""}<div class="legend"><span>● Свободна</span><span class="yellow">● Выбрана</span><span class="muted">● Забронирована</span><span class="red">● Продана</span></div></article></div></section>
 <section class="section" id="installment">${sectionHeading("06", "Калькулятор рассрочки")}<div class="calc-shell"><div class="stage-tabs"><span class="active">01 · ВЫБОР ПЛАНА</span><span>02 · СТРУКТУРА ПЛАТЕЖЕЙ</span><span>03 · ГРАФИК ПЛАТЕЖЕЙ</span></div><div class="calc-context"><span>УСЛОВИЯ</span><strong>${unitContext(a)}</strong></div><div class="program-box"><strong>Блок ${display(a?.block)} · подтверждённые сценарии рассрочки</strong><label class="program-select-label">Программа рассрочки<select id="program"><option value="">Выберите подтверждённую программу</option>${availablePrograms.map((program) => `<option value="${escape(program.id)}" ${program.id === programId ? "selected" : ""}>${escape(programText(program))}</option>`).join("")}</select></label><p class="calc-note">${finalNote}</p></div>${p?.repairAllowed ? `<div class="repair-card"><label class="check"><input id="include-repair" type="checkbox" ${includeRepair ? "checked" : ""}><span><strong>Включить стоимость ремонта в рассрочку</strong><small>${unitRate(finance.repairPerM2, `${currencyLabel()}/м²`)} × ${formatNumber(finance.area)} м² · ${money(finance.repair)}. Ставка редактируется в ROI.</small></span></label><p>База рассрочки: <strong>${money(repairBase)}</strong> · включая ремонт · Общая стоимость ремонта: <strong>${money(finance.repair)}</strong></p></div>` : ""}<div class="payment-grid"><div class="payment-cell highlight"><span>Первоначальный взнос (${display(p?.downPercent)}%)</span><strong>${money(ip.down)}</strong></div><div class="payment-cell"><span>Рассрочка (${display(p?.installmentPercent)}% / ${display(p?.months)} мес.)</span><strong>${money(monthlyPart)}</strong></div><div class="payment-cell highlight"><span>Ежемесячный платёж</span><strong>${money(ip.monthly)}</strong></div><div class="payment-cell"><span>Финальный платёж (${display(p?.finalPercent)}%)</span><strong>${money(ip.final)}</strong></div></div><p class="payment-note">Финальный платёж вносится единовременно либо переоформляется в ипотеку — на выбор клиента.</p><p class="payment-note blue">${finalNote}</p><div class="payment-timeline"><div><i></i><strong>${display(p?.downPercent)}%</strong><small>СЕГОДНЯ</small></div><hr><div><i></i><strong>${display(p?.installmentPercent)}%</strong><small>${display(p?.months)} МЕС.</small></div><hr><div><i></i><strong>${display(p?.finalPercent)}%</strong><small>ФИНАЛЬНЫЙ ПЛАТЁЖ</small></div></div>${ip.missing ? `<p class="notice">${missing}: ${ip.missing.map(escape).join(", ")}</p>` : ""}</div></section>
 <section class="section" id="investment">${sectionHeading("07", "ROI-калькулятор")}<div class="roi-shell">${roiTabs}<div class="roi-layout"><div class="roi-main"><div class="roi-form-card"><div class="form-grid">${formFields}</div><label class="check"><input type="checkbox" id="indexation" ${finance.indexationEnabled ? "checked" : ""}>Учитывать индексацию цены за ночь</label><p class="model-note">Расчёт использует подтверждённые параметры проекта. Рост стоимости недвижимости в ROI не включён без исторических данных.</p></div><div class="roi-results"><h3>Финансовые результаты</h3>${r.missing ? `<p class="notice">${missing}: ${r.missing.map((key) => escape(labels[key] || key)).join(", ")}</p>` : ""}${expenseLine("Стоимость квартиры", resultValue(r.investment ? finance.price : null))}${expenseLine("Стоимость ремонта", money(finance.repair))}${expenseLine("Общая инвестиция", resultValue(r.investment))}${expenseLine("Валовая выручка", resultValue(r.gross))}${resultExpense("НДС", r.vat)}${expenseLine("Доход после НДС", resultValue(r.afterVat))}${resultExpense("Управление", r.management)}${expenseLine("Доход собственника", resultValue(r.owner))}${resultExpense("Налог на доход", r.tax)}${resultExpense("Обслуживание", finance.maintenance)}${expenseLine("Чистая прибыль за год 1", netLabel, "highlight")}${expenseLine("ROI (год 1)", roiLabel, "highlight")}${expenseLine("Ожидание до начала аренды", Number.isFinite(r.wait) ? `${Math.round(r.wait * 12)} мес.` : missing)}${expenseLine("Срок окупаемости (с даты покупки)", paybackLabel)}<label class="horizon-label">Накопленный доход <span>Период аренды, лет</span><input id="horizon" type="number" min="1" max="100" step="1" placeholder="${missing}"></label><p id="cumulative" class="notice"></p></div></div><aside class="card summary sticky-summary"><div class="eyebrow">ИТОГ</div><div class="summary-unit"><strong>${escape(projectDisplayName())}</strong><span>${a ? `Блок ${display(a.block)} · этаж ${display(a.floor)} · №${display(a.number)}` : missing}</span><span>${a ? `${display(a.type)} · ${display(a.area)} м²` : missing}</span><strong>${money(a?.price)}</strong></div><div class="summary-images"><div>${image(a?.plan, "Планировка квартиры")}<small>Планировка квартиры</small></div><div>${image(floor?.image, "Позиция на этаже")}<small>Позиция на этаже</small></div></div>${summaryRows}<button id="pdf" class="button full">Инвестиционный PDF ${arrowIcon}</button><small class="summary-note">Пересчитывается автоматически при изменении любого поля.</small></aside></div></div></section>
@@ -589,6 +661,12 @@ function bind() {
     finance.indexationEnabled = e.target.checked;
     render();
   };
+  document.querySelectorAll("[data-roi-mode]").forEach((tab) => {
+    tab.onclick = () => {
+      roiMode = tab.dataset.roiMode;
+      render();
+    };
+  });
   document.getElementById("program").onchange = (e) => {
     programId = e.target.value;
     includeRepair =
@@ -602,16 +680,19 @@ function bind() {
       includeRepair = e.target.checked;
       render();
     };
-  document.getElementById("horizon").oninput = (e) => {
+  const horizonInput = document.getElementById("horizon");
+  if (horizonInput) horizonInput.oninput = (e) => {
     const n = Number(e.target.value);
     incomeHorizon = Number.isInteger(n) && n > 0 && n <= 100 ? n : null;
-    document.getElementById("cumulative").textContent =
+    const cumulative = document.getElementById("cumulative");
+    if (cumulative) cumulative.textContent =
       Number.isInteger(n) && n > 0 && n <= 100
         ? (() => {
             const total = cumulativeIncome(finance, n);
             return Number.isFinite(total) ? money(total) : missing;
           })()
         : missing;
+    updateCapitalizationView();
   };
   for (const id of ["pdf", "pdf-top"])
     document.getElementById(id).onclick = () => window.print();
