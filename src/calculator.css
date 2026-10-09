@@ -1,5 +1,5 @@
 /* Project presentation. Catalog dimensions and financial calculations remain shared. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Serif:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap');
 :root {
   --project-blue: #0878ad;
   --project-blue-soft: #eaf5fb;
@@ -10,10 +10,10 @@
 }
 
 /* Final visual tuning: calm sans-serif body, readable serif headings. */
-:root { font-family: Inter, Arial, sans-serif; }
-body, button, input, select { font-family: Inter, Arial, sans-serif; }
+:root { font-family: "DM Sans", Arial, sans-serif; }
+body, button, input, select { font-family: "DM Sans", Arial, sans-serif; }
 h1, h2, .reference-heading h2, .model-card h3, .history-card h3, .roi-results h3 {
-  font-family: "PT Serif", Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-weight: 400;
 }
 .reference-heading > span { display:none; }
@@ -485,19 +485,35 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 }
 #overview .hero-copy { left:0; right:0; max-width:none; text-align:center; }
 #overview .hero-copy .actions { justify-content:center; margin-top:325px; }
-.project-description { padding-top:54px; padding-bottom:20px; }
-.project-description-inner {
-  max-width:860px;
-  padding:28px 34px;
-  border-left:3px solid var(--project-blue);
-  background:#fff;
-  border-radius:0 14px 14px 0;
-}
-.project-description-inner h2 { margin:10px 0 14px; font-size:30px; }
-.project-description-inner p { margin:0; color:var(--project-muted); font-size:15px; line-height:1.8; }
 @media (max-width:760px) {
   #overview .hero-copy h1 { max-width:100%; font-size:clamp(48px, 14vw, 68px); white-space:normal; }
   #overview .hero-copy .actions { margin-top:220px; }
-  .project-description-inner { padding:22px; }
-  .project-description-inner p { font-size:14px; }
+}
+
+/* Unified type scale: readable at desktop width and still comfortable on mobile. */
+body { font-size:14px; line-height:1.5; }
+header nav { font-size:13px; letter-spacing:.01em; }
+header .brand { font-size:15px; letter-spacing:.08em; }
+.reference-heading { margin-bottom:24px; }
+.reference-heading h2 { font-size:clamp(30px, 3vw, 42px); line-height:1.18; letter-spacing:-.02em; }
+.section-head h2 { font-size:clamp(28px, 2.8vw, 38px); line-height:1.2; }
+.section-head .muted, .eyebrow { font-size:12px; letter-spacing:.08em; }
+.model-card h3, .history-card h3, .roi-results h3 { font-size:25px; line-height:1.28; }
+.page-layout p, .page-layout .field-hint, .page-layout .payment-note, .page-layout .model-note,
+.page-layout .summary-note, .page-layout .asset-note, .page-layout .notice { font-size:13px; line-height:1.6; }
+.stats small { font-size:12px; letter-spacing:.05em; }
+.stats strong { font-size:clamp(22px, 2vw, 30px); line-height:1.2; }
+.filters label, .field-label, .program-select-label, .horizon-label { font-size:12px; letter-spacing:.04em; }
+input, select, button, table { font-size:13px; }
+.detail-grid small, .location-meta small, .expense-grid small { font-size:11px; letter-spacing:.06em; }
+.detail-grid strong, .location-meta strong, .expense-grid strong { font-size:14px; }
+.summary .finance-line > span { font-size:10px; letter-spacing:.06em; }
+.summary .finance-line > strong { font-size:22px; }
+.hero-copy .actions .text-link { font-size:16px; }
+@media (max-width:760px) {
+  .reference-heading h2 { font-size:30px; }
+  .section-head h2 { font-size:28px; }
+  .model-card h3, .history-card h3, .roi-results h3 { font-size:22px; }
+  .stats strong { font-size:22px; }
+  .summary .finance-line > strong { font-size:20px; }
 }

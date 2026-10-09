@@ -246,12 +246,14 @@ function placeSharedSummary() {
   const firstSection = main?.querySelector("#investment-model");
   const sourceSection = main?.querySelector(".source-section");
   const summary = main?.querySelector("#investment .summary");
+  const catalog = main?.querySelector("#catalog");
   if (!main || !firstSection || !sourceSection || !summary) return;
   const layout = document.createElement("div");
   layout.className = "page-layout";
   const pageMain = document.createElement("div");
   pageMain.className = "page-main";
   summary.remove();
+  catalog?.remove();
   main.insertBefore(layout, firstSection);
   let section = firstSection;
   while (section && section !== sourceSection) {
@@ -260,6 +262,11 @@ function placeSharedSummary() {
     section = next;
   }
   layout.append(pageMain, summary);
+  if (catalog) {
+    const expenses = pageMain.querySelector("#expenses");
+    if (expenses) expenses.after(catalog);
+    else pageMain.prepend(catalog);
+  }
 }
 
 function placeTypeTabs(options) {
