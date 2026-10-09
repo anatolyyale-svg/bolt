@@ -295,8 +295,8 @@ function placeSharedSummary() {
   }
   layout.append(pageMain, summary);
   if (catalog) {
-    const expenses = pageMain.querySelector("#expenses");
-    if (expenses) expenses.after(catalog);
+    const history = pageMain.querySelector("#history");
+    if (history) history.after(catalog);
     else pageMain.prepend(catalog);
   }
 }

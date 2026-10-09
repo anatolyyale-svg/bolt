@@ -116,7 +116,7 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 .comparison-grid .card p { font-size:12px; line-height:1.6; }
 
 /* Consistent editorial hierarchy with a shared result rail. */
-.page-layout { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:32px; align-items:start; margin-top:64px; }
+.page-layout { display:grid; grid-template-columns:minmax(0,1fr) 346px; gap:28px; align-items:start; margin-top:64px; }
 .page-main { min-width:0; }
 .page-main > .section { padding-top:52px; }
 .page-main > .section:first-child { padding-top:0; }
@@ -723,4 +723,34 @@ body, button, input, select, table {
   .summary-yield .finance-line { grid-template-rows:36px auto; }
   .summary-yield .finance-line > strong,
   .summary-yield .finance-line.accent > strong { font-size:21px; }
+}
+
+/* Final page rhythm after widening the working area. */
+@media (min-width:1101px) {
+  main { padding-left:4%; padding-right:4%; }
+}
+.calc-shell { padding:24px; }
+.program-box { padding:18px; }
+.program-box > strong { margin-bottom:12px; }
+.repair-card { padding:16px 18px; margin-top:12px; }
+.payment-grid { margin-top:16px; }
+.payment-cell { min-height:102px; padding:14px 16px; gap:8px; }
+.payment-timeline { padding-top:18px; margin-top:18px; }
+.roi-tabs { margin-bottom:14px; }
+.roi-form-card .form-grid { gap:12px; }
+.roi-form-card .field-card { gap:10px; padding:16px; }
+.page-layout .input-wrap input { padding:11px 12px; font-size:18px; }
+.page-layout .input-wrap input[type="date"] { padding-top:12px; padding-bottom:12px; font-size:15px; }
+.roi-results { margin-top:20px; }
+.roi-results h3 { padding:20px; }
+.finance-line { padding:11px 20px; }
+.horizon-label { padding:16px 20px; }
+@media (max-width:760px) {
+  .calc-shell { padding:18px; }
+  .program-box { padding:16px; }
+  .program-pill { min-height:112px; }
+  .repair-card { padding:14px 16px; }
+  .payment-cell { min-height:96px; padding:14px 16px; }
+  .roi-form-card .field-card { padding:15px; }
+  .roi-results h3 { padding:18px; }
 }
