@@ -1,5 +1,5 @@
 /* Project presentation. Catalog dimensions and financial calculations remain shared. */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap');
 :root {
   --project-blue: #0878ad;
   --project-blue-soft: #eaf5fb;
@@ -10,8 +10,8 @@
 }
 
 /* Final visual tuning: calm sans-serif body, readable serif headings. */
-:root { font-family: "DM Sans", Arial, sans-serif; }
-body, button, input, select { font-family: "DM Sans", Arial, sans-serif; }
+:root { font-family: "Manrope", Arial, sans-serif; }
+body, button, input, select { font-family: "Manrope", Arial, sans-serif; }
 h1, h2, .reference-heading h2, .model-card h3, .history-card h3, .roi-results h3 {
   font-family: "Playfair Display", Georgia, serif;
   font-weight: 400;
@@ -116,7 +116,7 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 .comparison-grid .card p { font-size:12px; line-height:1.6; }
 
 /* Consistent editorial hierarchy with a shared result rail. */
-.page-layout { display:grid; grid-template-columns:minmax(0,1fr) 306px; gap:32px; align-items:start; margin-top:64px; }
+.page-layout { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:32px; align-items:start; margin-top:64px; }
 .page-main { min-width:0; }
 .page-main > .section { padding-top:52px; }
 .page-main > .section:first-child { padding-top:0; }
@@ -683,5 +683,44 @@ input, select, button, table { font-size:13px; }
   .summary-yield .finance-line.accent > strong { font-size:23px; }
 }
 @media (max-width:420px) {
-  .summary-yield { grid-template-columns:1fr; }
+  .summary-yield { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+/* Final type polish: lighter numeric hierarchy and stable summary baselines. */
+body, button, input, select, table {
+  font-variant-numeric:tabular-nums lining-nums;
+}
+.stats strong,
+.payment-cell strong,
+.summary .finance-line strong,
+.summary-unit > strong:last-child {
+  font-weight:500;
+  letter-spacing:-.015em;
+}
+.payment-cell strong {
+  font-size:clamp(22px,1.85vw,29px);
+}
+.summary-yield .finance-line {
+  grid-template-rows:40px auto;
+  gap:7px;
+  padding:8px 0;
+}
+.summary-yield .finance-line > span {
+  min-height:0;
+  display:flex;
+  align-items:flex-start;
+  line-height:1.4;
+}
+.summary-yield .finance-line > strong,
+.summary-yield .finance-line.accent > strong {
+  font-size:clamp(21px,1.65vw,24px);
+  font-weight:500;
+  line-height:1.15;
+  letter-spacing:-.02em;
+}
+@media (max-width:760px) {
+  .payment-cell strong { font-size:25px; }
+  .summary-yield .finance-line { grid-template-rows:36px auto; }
+  .summary-yield .finance-line > strong,
+  .summary-yield .finance-line.accent > strong { font-size:21px; }
 }
