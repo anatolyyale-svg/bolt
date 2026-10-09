@@ -807,6 +807,23 @@ body, button, input, select, table {
 .capitalization-total strong { color:var(--project-blue); }
 .capitalization-hint { margin:10px 0 0; color:var(--project-muted); font-size:10px; line-height:1.5; }
 .roi-tab[data-roi-mode] { cursor:pointer; }
+.roi-tab:disabled { cursor:not-allowed; }
+.roi-mode-capitalization .roi-form-card > .form-grid,
+.roi-mode-capitalization .roi-form-card > .assumptions,
+.roi-mode-capitalization .roi-form-card > .model-note,
+.roi-mode-capitalization-rental .roi-form-card > .form-grid,
+.roi-mode-capitalization-rental .roi-form-card > .assumptions,
+.roi-mode-capitalization-rental .roi-form-card > .model-note,
+.roi-mode-capitalization .roi-results,
+.roi-mode-capitalization-rental .roi-results { display:none; }
+.renovation-settings { margin-bottom:16px; padding:14px 16px; border:1px solid var(--project-line); border-radius:12px; background:#fff; }
+.renovation-settings .check { margin:0; }
+.renovation-settings .check span { display:grid; gap:4px; }
+.renovation-settings .check strong { color:var(--project-ink); font-size:13px; font-weight:600; }
+.renovation-settings .check small { color:var(--project-muted); font-size:10px; line-height:1.5; }
+.capitalization-horizon { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:12px; padding:10px 12px; border:1px solid var(--project-line); border-radius:9px; color:var(--project-muted); font-size:11px; }
+.capitalization-horizon input { width:84px; padding:8px 10px; border:1px solid #d8e0d7; border-radius:7px; background:#fafbf8; color:var(--project-ink); font:inherit; font-variant-numeric:tabular-nums; text-align:center; }
+.capitalization-horizon input:focus { outline:2px solid #0878ad33; border-color:var(--project-blue); }
 @media (max-width:900px) {
   .history-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .history-metrics article:nth-child(2n) { border-right:0; }
@@ -825,4 +842,7 @@ body, button, input, select, table {
   .capitalization-rental-result > div:nth-child(2) { border-right:0; border-bottom:1px solid var(--project-line); }
   .capitalization-rental-result > div:last-child { border-bottom:0; }
   .capitalization-rental-result .capitalization-total { grid-column:auto; border-top:0; }
+  .renovation-settings { padding:13px 14px; }
+  .capitalization-horizon { align-items:flex-start; flex-direction:column; gap:7px; }
+  .capitalization-horizon input { width:100%; }
 }

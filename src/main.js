@@ -31,6 +31,7 @@ let project = validateProject(centropolisSource),
     purchaseDate: project.finance.purchaseDate || currentDate(),
   },
   programId = "",
+  renovationEnabled = true,
   includeRepair = false,
   occupancyMode = "percent",
   incomeHorizon = 10,
@@ -100,7 +101,7 @@ function select(id, redraw = true) {
   selected = id;
   const blockProgram = applicablePrograms(project, a)[0];
   programId = blockProgram?.id || "";
-  includeRepair = blockProgram?.repairAllowed === true;
+  includeRepair = renovationEnabled && blockProgram?.repairAllowed === true;
   finance = {
     ...project.finance,
     price: a.price,
@@ -115,6 +116,12 @@ function select(id, redraw = true) {
     purchaseDate: finance.purchaseDate || currentDate(),
   };
   if (redraw) render();
+}
+
+function calculationFinance() {
+  return renovationEnabled
+    ? finance
+    : { ...finance, repair: 0, repairPerM2: 0 };
 }
 
 const dateLabel = (value) => {
@@ -187,7 +194,11 @@ const formatNumber = (value) => Number.isFinite(value)
 function capitalizationData(unit, minimumPricePerM2) {
   const area = Number.isFinite(finance.area) ? finance.area : unit?.area;
   const purchasePrice = Number.isFinite(finance.price) ? finance.price : unit?.price;
-  const repairPerM2 = Number.isFinite(finance.repairPerM2) ? finance.repairPerM2 : 900;
+  const repairPerM2 = renovationEnabled && Number.isFinite(finance.repairPerM2)
+    ? finance.repairPerM2
+    : renovationEnabled
+      ? 900
+      : 0;
   const repairCost = Number.isFinite(area) ? area * repairPerM2 : null;
   const withoutRepairValue = Number.isFinite(area)
     ? area * capitalizationRates.handoverWithoutRepair
@@ -223,7 +234,7 @@ const capitalizationScenario = (title, value, gain, percent, note = "") =>
 
 function updateCapitalizationView() {
   const data = capitalizationData(apartment());
-  const rental = incomeHorizon != null ? cumulativeIncome(finance, incomeHorizon) : null;
+  const rental = incomeHorizon != null ? cumulativeIncome(calculationFinance(), incomeHorizon) : null;
   const total = Number.isFinite(data.withRepairValue) && Number.isFinite(data.purchasePrice) && Number.isFinite(data.repairCost) && Number.isFinite(rental)
     ? data.withRepairValue + rental - data.purchasePrice - data.repairCost
     : null;
@@ -237,27 +248,46 @@ function updateCapitalizationView() {
     element.textContent = resultValue(total);
   });
   const summaryLines = document.querySelectorAll(".summary-rental-grid .finance-line");
-  if (summaryLines.length >= 3) {
+  if (summaryLines.length >= 5) {
+    const investment = Number.isFinite(data.purchasePrice) && Number.isFinite(data.repairCost)
+      ? data.purchasePrice + data.repairCost
+      : null;
+    const percent = Number.isFinite(total) && Number.isFinite(investment) && investment > 0
+      ? total / investment * 100
+      : null;
     summaryLines[1].querySelector("span").textContent = `ДОХОД ОТ АРЕНДЫ · ${incomeHorizon ?? missing} ЛЕТ`;
     summaryLines[1].querySelector("strong").textContent = resultValue(rental);
     summaryLines[2].querySelector("strong").textContent = resultValue(total);
+    summaryLines[3].querySelector("strong").textContent = Number.isFinite(percent) ? `${formatNumber(percent)} %` : missing;
+    summaryLines[4].querySelector("strong").textContent = Number.isFinite(total)
+      ? total >= 0
+        ? `Продажа при передаче ключей + ${incomeHorizon} лет аренды`
+        : "Не достигается в выбранном периоде"
+      : "Недостаточно данных для оценки возврата";
   }
 }
 
 function capitalizationPanelMarkup(unit) {
   const data = capitalizationData(unit);
-  const rental = incomeHorizon != null ? cumulativeIncome(finance, incomeHorizon) : null;
+  const rental = incomeHorizon != null ? cumulativeIncome(calculationFinance(), incomeHorizon) : null;
   const total = Number.isFinite(data.withRepairValue) && Number.isFinite(data.purchasePrice) && Number.isFinite(data.repairCost) && Number.isFinite(rental)
     ? data.withRepairValue + rental - data.purchasePrice - data.repairCost
     : null;
-  return `<section class="capitalization-panel"><div class="capitalization-panel-head"><div><h3>${roiMode === "capitalization-rental" ? "Капитализация и доход от аренды" : "Сценарии капитализации"}</h3><p>Прогнозные значения не являются гарантией доходности.</p></div><span class="capitalization-badge">СЦЕНАРИЙ</span></div><div class="capitalization-scenarios">${capitalizationScenario("Без ремонта · 5 500 $/м²", data.withoutRepairValue, data.withoutRepairGain, data.withoutRepairPercent)}${capitalizationScenario("С ремонтом · 7 000 $/м²", data.withRepairValue, data.withRepairGain, data.withRepairPercent, `В расчёте прироста учтён ремонт ${formatNumber(data.repairPerM2)} $/м².`)}</div>${roiMode === "capitalization-rental" ? `<div class="capitalization-rental-result"><div><span>Прогноз стоимости с ремонтом</span><strong>${resultValue(data.withRepairValue)}</strong></div><div><span>Накопленная чистая прибыль от аренды · <b data-cap-horizon>${incomeHorizon} лет</b></span><strong data-cap-rental>${resultValue(rental)}</strong></div><div class="capitalization-total"><span>Совокупный результат за вычетом покупки и ремонта</span><strong data-cap-total>${resultValue(total)}</strong></div></div><p class="capitalization-hint">Период аренды выбирается в поле «Накопленный доход» ниже. Доход начинается с даты сдачи квартиры в аренду.</p>` : ""}</section>`;
+  const scenarios = renovationEnabled
+    ? `${capitalizationScenario("Без ремонта · 5 500 $/м²", data.withoutRepairValue, data.withoutRepairGain, data.withoutRepairPercent)}${capitalizationScenario("С ремонтом · 7 000 $/м²", data.withRepairValue, data.withRepairGain, data.withRepairPercent, `В расчёте прироста учтён ремонт ${formatNumber(data.repairPerM2)} $/м².`)}`
+    : capitalizationScenario("Без ремонта · 5 500 $/м²", data.withoutRepairValue, data.withoutRepairGain, data.withoutRepairPercent);
+  const rentalControls = roiMode === "capitalization-rental"
+    ? `<label class="capitalization-horizon">Период аренды, лет<input id="capitalization-horizon" type="number" min="1" max="100" step="1" value="${incomeHorizon ?? ""}"></label><div class="capitalization-rental-result"><div><span>Прогноз стоимости с ремонтом</span><strong>${resultValue(data.withRepairValue)}</strong></div><div><span>Накопленная чистая прибыль от аренды · <b data-cap-horizon>${incomeHorizon ?? missing} лет</b></span><strong data-cap-rental>${resultValue(rental)}</strong></div><div class="capitalization-total"><span>Совокупный результат за вычетом покупки и ремонта</span><strong data-cap-total>${resultValue(total)}</strong></div></div><p class="capitalization-hint">Доход учитывается с даты начала сдачи квартиры. Стоимость недвижимости не увеличивается автоматически за счёт периода аренды.</p>`
+    : "";
+  return `<section class="capitalization-panel"><div class="capitalization-panel-head"><div><h3>${roiMode === "capitalization-rental" ? "Капитализация и доход от аренды" : "Сценарии капитализации"}</h3><p>Прогнозные значения ориентировочные и не являются гарантией доходности.</p></div><span class="capitalization-badge">СЦЕНАРИЙ</span></div><div class="capitalization-scenarios">${scenarios}</div>${rentalControls}</section>`;
 }
 
 function financeField(key, title, unit = "", hint = "", controls = "") {
   const isDate = key.includes("Date");
   const value = isDate ? finance[key] || "" : numericDisplay(finance[key]);
   const id = "finance-" + key;
-  return `<div class="field-card"><label class="field-label" for="${id}">${title}</label>${controls}<div class="input-wrap"><input id="${id}" data-finance="${key}" type="${isDate ? "date" : "number"}" ${isDate ? "" : 'min="0" step="any"'} ${["vat", "management", "tax"].includes(key) ? 'max="100"' : ""} value="${escape(value)}" placeholder="${missing}" ${key === "indexation" && !finance.indexationEnabled ? "disabled" : ""}>${unit ? `<span class="input-unit">${unit}</span>` : ""}</div>${hint ? `<p class="field-hint">${hint}</p>` : ""}</div>`;
+  const disabled = (key === "indexation" && !finance.indexationEnabled) || (key === "repairPerM2" && !renovationEnabled);
+  return `<div class="field-card"><label class="field-label" for="${id}">${title}</label>${controls}<div class="input-wrap"><input id="${id}" data-finance="${key}" type="${isDate ? "date" : "number"}" ${isDate ? "" : 'min="0" step="any"'} ${["vat", "management", "tax"].includes(key) ? 'max="100"' : ""} value="${escape(value)}" placeholder="${missing}" ${disabled ? "disabled" : ""}>${unit ? `<span class="input-unit">${unit}</span>` : ""}</div>${hint ? `<p class="field-hint">${hint}</p>` : ""}</div>`;
 }
 
 function financeForm() {
@@ -288,7 +318,7 @@ function financeForm() {
 
 function refinePresentation(unit, result, program, payment, floor) {
   const roiCard = document.querySelector(".roi-form-card");
-  roiCard.innerHTML = `<div class="form-grid">${financeForm()}</div>
+  roiCard.innerHTML = `<div class="renovation-settings"><label class="check"><input id="use-renovation" type="checkbox" ${renovationEnabled ? "checked" : ""}><span><strong>Учитывать ремонт</strong><small>Стоимость ремонта — ${unitRate(finance.repairPerM2 ?? 900, `${currencyLabel()}/м²`)}. Выключение оставляет только сценарий капитализации без ремонта.</small></span></label></div><div class="form-grid">${financeForm()}</div>
     <details class="assumptions"><summary>Расходы и параметры расчёта <span>НДС · управление · налог · обслуживание</span></summary>
       <div class="assumptions-grid">${[
         financeField("vat", "НДС", "%", "От валовой выручки"),
@@ -305,9 +335,26 @@ function refinePresentation(unit, result, program, payment, floor) {
 
   const summary = document.querySelector(".summary");
   const capSummary = capitalizationData(unit);
-  const rentalIncome = incomeHorizon != null ? cumulativeIncome(finance, incomeHorizon) : null;
+  const rentalIncome = incomeHorizon != null ? cumulativeIncome(calculationFinance(), incomeHorizon) : null;
   const combinedResult = Number.isFinite(capSummary.withRepairValue) && Number.isFinite(capSummary.purchasePrice) && Number.isFinite(capSummary.repairCost) && Number.isFinite(rentalIncome)
     ? capSummary.withRepairValue + rentalIncome - capSummary.purchasePrice - capSummary.repairCost
+    : null;
+  const saleValue = renovationEnabled ? capSummary.withRepairValue : capSummary.withoutRepairValue;
+  const saleInvestment = Number.isFinite(capSummary.purchasePrice)
+    ? capSummary.purchasePrice + (renovationEnabled ? capSummary.repairCost || 0 : 0)
+    : null;
+  const salePayback = Number.isFinite(saleValue) && Number.isFinite(saleInvestment)
+    ? saleValue >= saleInvestment
+      ? `При передаче ключей · ${dateLabel(project.completionDate)}`
+      : "Не достигается: прогноз ниже вложений"
+    : "Недостаточно данных для оценки возврата";
+  const combinedPayback = Number.isFinite(combinedResult)
+    ? combinedResult >= 0
+      ? `Продажа при передаче ключей + ${incomeHorizon} лет аренды`
+      : "Не достигается в выбранном периоде"
+    : "Недостаточно данных для оценки возврата";
+  const combinedPercent = Number.isFinite(combinedResult) && Number.isFinite(saleInvestment) && saleInvestment > 0
+    ? combinedResult / saleInvestment * 100
     : null;
   const percentageLabel = (value) => Number.isFinite(value) ? `${formatNumber(value)} %` : missing;
   const gainLabel = (gain, percent) => `${resultValue(gain)} · ${percentageLabel(percent)}`;
@@ -315,15 +362,15 @@ function refinePresentation(unit, result, program, payment, floor) {
     ? `<div class="summary-yield">${expenseLine("Чистая прибыль / год", money(result.net), "positive")}${expenseLine("ROI · год 1", Number.isFinite(result.roi) ? formatNumber(result.roi) + " %" : missing, "accent")}</div>
     <div class="summary-dates">${expenseLine("Сдача комплекса", display(project.completionDate))}${expenseLine("Окупаемость от покупки", result.paybackMissing?.length ? missing : result.payback == null ? "Не достигнута" : yearsLabel(result.payback))}</div>`
     : roiMode === "capitalization"
-      ? `<div class="summary-mode-grid">${expenseLine("Прогноз без ремонта", resultValue(capSummary.withoutRepairValue))}${expenseLine("Прирост без ремонта", gainLabel(capSummary.withoutRepairGain, capSummary.withoutRepairPercent), "accent")}${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine("Прирост с ремонтом", gainLabel(capSummary.withRepairGain, capSummary.withRepairPercent), "positive")}</div><p class="summary-note summary-disclaimer">Прогнозные значения не являются гарантией доходности.</p>`
-      : `<div class="summary-mode-grid summary-rental-grid">${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine(`Доход от аренды · ${incomeHorizon ?? missing} лет`, resultValue(rentalIncome), "positive")}${expenseLine("Совокупный результат", resultValue(combinedResult), "accent")}</div><p class="summary-note summary-disclaimer">Стоимость ремонта вычтена один раз. Период аренды можно изменить в калькуляторе.</p>`;
+      ? `<div class="summary-mode-grid">${expenseLine("Прогноз без ремонта", resultValue(capSummary.withoutRepairValue))}${expenseLine("Прирост без ремонта", gainLabel(capSummary.withoutRepairGain, capSummary.withoutRepairPercent), "accent")}${renovationEnabled ? `${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine("Прирост с ремонтом", gainLabel(capSummary.withRepairGain, capSummary.withRepairPercent), "positive")}` : ""}${expenseLine("Окупаемость при продаже", salePayback)}</div><p class="summary-note summary-disclaimer">Прогнозные значения не являются гарантией доходности. Возврат оценивается только при продаже на дату передачи ключей.</p>`
+      : `<div class="summary-mode-grid summary-rental-grid">${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine(`Доход от аренды · ${incomeHorizon ?? missing} лет`, resultValue(rentalIncome), "positive")}${expenseLine("Совокупный результат", resultValue(combinedResult), "accent")}${expenseLine("Доходность сценария", percentageLabel(combinedPercent), "positive")}${expenseLine("Окупаемость", combinedPayback)}</div><p class="summary-note summary-disclaimer">Стоимость ремонта вычтена один раз. Продажа учитывается только на момент передачи ключей.</p>`;
   const modelLabel = roiMode === "rental" ? "Авторасчёт" : roiMode === "capitalization" ? "Капитализация" : "Капитализация + аренда";
   summary.innerHTML = `<div class="summary-heading"><span class="eyebrow">ИТОГ</span><span class="summary-live"><i></i> ${modelLabel}</span></div>
     <div class="summary-unit"><small>${escape(projectDisplayName())}</small><h3>${unit ? `Блок ${display(unit.block)} · №${display(unit.number)}` : "Выберите квартиру"}</h3>
     <span>${unit ? `Этаж ${display(unit.floor)} · ${escape(typeLabel(unit.typeKey || unit.type))} · ${formatNumber(finance.area)} м²` : missing}</span></div>
     <div class="summary-images"><div>${image(unit?.plan, "Планировка квартиры")}<small>Планировка</small></div><div>${image(floor?.image, "План этажа")}<small>План этажа</small></div></div>
     ${expenseLine("Стоимость квартиры", money(finance.price))}
-    ${expenseLine("Ремонт", money(finance.repair))}
+    ${expenseLine("Ремонт", money(renovationEnabled ? finance.repair : 0))}
     ${expenseLine("Общая инвестиция", money(result.investment))}
     ${summaryModel}
     <button id="pdf" class="button full">Инвестиционный PDF <span aria-hidden="true">${arrowIcon}</span></button><small class="summary-note">Обновляется при изменении параметров</small>`;
@@ -354,11 +401,11 @@ function refinePresentation(unit, result, program, payment, floor) {
   if (repairDescription) repairDescription.innerHTML = `База рассрочки: <strong>${money(payment.total)}</strong> · ${includeRepair ? "с ремонтом" : "без ремонта"}`;
   const horizon = document.getElementById("horizon");
   horizon.value = incomeHorizon ?? "";
-  document.getElementById("cumulative").textContent = incomeHorizon != null ? money(cumulativeIncome(finance, incomeHorizon)) : "";
+  document.getElementById("cumulative").textContent = incomeHorizon != null ? money(cumulativeIncome(calculationFinance(), incomeHorizon)) : "";
   const resultPrice = document.querySelector(".roi-results > .finance-line");
   resultPrice.querySelector("strong").textContent = money(finance.price);
   if (roiMode !== "rental") {
-    document.querySelector(".roi-tabs")?.insertAdjacentHTML("afterend", capitalizationPanelMarkup(unit));
+    document.querySelector(".roi-main")?.insertAdjacentHTML("afterbegin", capitalizationPanelMarkup(unit));
   }
   const unitPlan = document.querySelector("#plans article:first-child");
   if (!unit?.plan) unitPlan.querySelector(".asset-note")?.remove();
@@ -413,6 +460,7 @@ function placeTypeTabs(options) {
 }
 
 function render() {
+  if (!renovationEnabled && roiMode !== "capitalization") roiMode = "capitalization";
   const previousUI = {
     tableTop: document.querySelector(".table-scroll")?.scrollTop || 0,
     tableLeft: document.querySelector(".table-scroll")?.scrollLeft || 0,
@@ -421,9 +469,10 @@ function render() {
     focusedField: document.activeElement?.dataset?.finance,
   };
   const a = apartment();
-  const r = roi(finance);
+  const calcFinance = calculationFinance();
+  const r = roi(calcFinance);
   const p = project.programs.find((program) => program.id === programId);
-  const ip = installment(finance.price, p, finance.repair, includeRepair);
+  const ip = installment(finance.price, p, finance.repair, renovationEnabled && includeRepair);
   const floor = project.floors.find(
     (item) => item.block === a?.block && item.number === a?.floor,
   );
@@ -485,7 +534,8 @@ function render() {
   const finalNote = p
     ? `Финальный платёж составляет ${p.finalPercent}% от базы рассрочки. Срок ежемесячной части: ${p.months} мес.`
     : missing;
-  const roiTabs = `<div class="roi-tabs"><button class="roi-tab${roiMode === "rental" ? " active" : ""}" data-roi-mode="rental">Доход от аренды</button><button class="roi-tab${roiMode === "capitalization" ? " active" : ""}" data-roi-mode="capitalization">Капитализация</button><button class="roi-tab${roiMode === "capitalization-rental" ? " active" : ""}" data-roi-mode="capitalization-rental">Капитализация + доход от аренды</button></div>`;
+  const rentalDisabled = renovationEnabled ? "" : " disabled aria-disabled=\"true\"";
+  const roiTabs = `<div class="roi-tabs"><button class="roi-tab${roiMode === "rental" ? " active" : ""}" data-roi-mode="rental"${rentalDisabled}>Доход от аренды</button><button class="roi-tab${roiMode === "capitalization" ? " active" : ""}" data-roi-mode="capitalization">Капитализация</button><button class="roi-tab${roiMode === "capitalization-rental" ? " active" : ""}" data-roi-mode="capitalization-rental"${rentalDisabled}>Капитализация + доход от аренды</button></div>`;
   const formFields = financeForm();
   const netLabel = Number.isFinite(r.net) ? money(r.net) : missing;
   const roiLabel = Number.isFinite(r.roi) ? `${r.roi.toFixed(2)} %` : missing;
@@ -512,10 +562,10 @@ ${safe(project.camera) ? `<section class="reference-section camera-section"><div
 <section class="section reference-section" id="investment-model">${sectionHeading("01", "Инвестиционная модель")}<div class="model-grid"><article class="model-card blue-edge"><h3>Рост капитализации</h3><ul><li>Историческая динамика: ${missing}</li><li>Подтверждённый прогноз: ${missing}</li><li>Период сравнения: ${missing}</li></ul></article><article class="model-card green-edge"><h3>Пассивный доход</h3><ul><li>Ставка: ${unitRate(finance.nightly, `${project.currency || "USD"} / ночь`)}</li><li>Загрузка: ${display(finance.occupancy)}% · ${display(finance.nights)} ночей в год</li><li>Управление: ${display(finance.management)}% после НДС</li></ul></article></div></section>
 <section class="section reference-section" id="expenses">${sectionHeading("02", "Расходы инвестора")}<div class="expense-grid"><article><small>НДС</small><strong>${Number.isFinite(finance.vat) ? `${finance.vat}% от общей выручки` : missing}</strong></article><article><small>УПРАВЛЯЮЩАЯ КОМПАНИЯ</small><strong>${Number.isFinite(finance.management) ? `${finance.management}% после НДС` : missing}</strong></article><article><small>НАЛОГ НА ДОХОД ОТ АРЕНДЫ</small><strong>${Number.isFinite(finance.tax) ? `${finance.tax}% с доли собственника` : missing}</strong></article><article><small>ОБСЛУЖИВАНИЕ КОМПЛЕКСА</small><strong>${Number.isFinite(finance.maintenancePerM2) ? `${formatNumber(finance.maintenancePerM2)} ${currencyLabel()}/м² в месяц` : missing}</strong></article></div><div class="info-strip">Все расчёты ROI ниже автоматически учитывают эти расходы.</div></section>
 <section class="section reference-section" id="location">${sectionHeading("03", "Локация комплекса")}<div class="location-card"><div class="map-frame">${map}${Number.isFinite(project.location?.lat) && Number.isFinite(project.location?.lng) ? `<a class="map-link" href="https://www.google.com/maps/search/?api=1&query=${project.location.lat},${project.location.lng}" target="_blank" rel="noopener">Открыть карту ${arrowIcon}</a>` : ""}</div><div class="location-meta"><div><small>ГОРОД</small><strong>${display(project.location?.city)}</strong></div><div><small>ДО МОРЯ</small><strong>${Number.isFinite(project.seaDistance) ? `${project.seaDistance} м` : missing}</strong></div><div><small>АДРЕС</small><strong>${display(project.location?.address)}</strong></div></div></div></section>
-<section class="section reference-section" id="history">${sectionHeading("04", "История роста стоимости")}<div class="history-card"><div class="history-card-head"><h3>История роста стоимости</h3><span class="history-status">Прогнозный сценарий</span></div><div class="history-metrics"><article><small>НА ЭТАПЕ КОТЛОВАНА</small><strong>${money(capitalizationRates.excavation)} / м²</strong><span>Исходный ориентир</span></article><article><small>СЕГОДНЯ</small><strong>${Number.isFinite(cap.minimumPricePerM2) ? `${money(cap.minimumPricePerM2)} / м²` : missing}</strong><span>Минимальная цена среди свободных квартир</span></article><article><small>ПЕРЕДАЧА КЛЮЧЕЙ · БЕЗ РЕМОНТА</small><strong>${money(capitalizationRates.handoverWithoutRepair)} / м²</strong><span>Прогнозная стоимость</span></article><article><small>ПЕРЕДАЧА КЛЮЧЕЙ · С РЕМОНТОМ</small><strong>${money(capitalizationRates.handoverWithRepair)} / м²</strong><span>Прогнозная стоимость</span></article></div><div class="history-disclaimer">Прогнозные значения ориентировочные и не являются гарантией будущей доходности.</div></div></section>
+<section class="section reference-section" id="history"><div class="history-card"><div class="history-card-head"><h3>История роста стоимости</h3><span class="history-status">Прогнозный сценарий</span></div><div class="history-metrics"><article><small>НА ЭТАПЕ КОТЛОВАНА</small><strong>${money(capitalizationRates.excavation)} / м²</strong><span>Исходный ориентир</span></article><article><small>СЕГОДНЯ</small><strong>${Number.isFinite(cap.minimumPricePerM2) ? `${money(cap.minimumPricePerM2)} / м²` : missing}</strong><span>Минимальная цена среди свободных квартир</span></article><article><small>ПЕРЕДАЧА КЛЮЧЕЙ · БЕЗ РЕМОНТА</small><strong>${money(capitalizationRates.handoverWithoutRepair)} / м²</strong><span>Прогнозная стоимость</span></article><article><small>ПЕРЕДАЧА КЛЮЧЕЙ · С РЕМОНТОМ</small><strong>${money(capitalizationRates.handoverWithRepair)} / м²</strong><span>Прогнозная стоимость</span></article></div><div class="history-disclaimer">Прогнозные значения ориентировочные и не являются гарантией будущей доходности.</div></div></section>
 <section class="section" id="plans">${sectionHeading("05", "Квартира и план этажа")}<div class="two-col"><article class="card"><div class="card-top"><h3>Ваша квартира</h3><span>ПЛАНИРОВКА</span></div>${image(a?.plan, "Планировка квартиры")}${a?.illustrativeLayout ? `<p class="asset-note">Типовая планировка. Соответствие конкретной квартире не подтверждено.</p>` : ""}<div class="detail-grid">${[["Номер", a?.number], ["Блок", a?.block], ["Этаж", a?.floor], ["Тип", a?.type], ["Площадь", a?.area], ["Стоимость", a ? money(a.price) : null]].map(([key, value]) => `<div><small>${key}</small><strong>${display(value)}</strong></div>`).join("")}</div></article><article class="card"><div class="card-top"><h3>Расположение на этаже</h3><span>ИНТЕРАКТИВНЫЙ ПЛАН</span></div><div class="floor-plan">${image(floor?.image, "План этажа")}</div>${floor?.rangeUnconfirmed ? `<p class="asset-note">План найден для диапазона этажей. Точная привязка к этажу требует подтверждения.</p>` : ""}${floorUnits.length ? `<div class="floor-units"><div class="floor-units-heading"><span>Всего квартир на этаже:</span><strong>${floorUnits.length}</strong></div>${floorUnits.map((unit) => `<button class="floor-unit ${selected === unit.id ? "selected" : unit.status}" data-select="${escape(unit.id)}">${display(unit.number)}</button>`).join("")}</div>` : ""}<div class="legend"><span>● Свободна</span><span class="yellow">● Выбрана</span><span class="muted">● Забронирована</span><span class="red">● Продана</span></div></article></div></section>
-<section class="section" id="installment">${sectionHeading("06", "Калькулятор рассрочки")}<div class="calc-shell"><div class="stage-tabs"><span class="active">01 · ВЫБОР ПЛАНА</span><span>02 · СТРУКТУРА ПЛАТЕЖЕЙ</span><span>03 · ГРАФИК ПЛАТЕЖЕЙ</span></div><div class="calc-context"><span>УСЛОВИЯ</span><strong>${unitContext(a)}</strong></div><div class="program-box"><strong>Блок ${display(a?.block)} · подтверждённые сценарии рассрочки</strong><label class="program-select-label">Программа рассрочки<select id="program"><option value="">Выберите подтверждённую программу</option>${availablePrograms.map((program) => `<option value="${escape(program.id)}" ${program.id === programId ? "selected" : ""}>${escape(programText(program))}</option>`).join("")}</select></label><p class="calc-note">${finalNote}</p></div>${p?.repairAllowed ? `<div class="repair-card"><label class="check"><input id="include-repair" type="checkbox" ${includeRepair ? "checked" : ""}><span><strong>Включить стоимость ремонта в рассрочку</strong><small>${unitRate(finance.repairPerM2, `${currencyLabel()}/м²`)} × ${formatNumber(finance.area)} м² · ${money(finance.repair)}. Ставка редактируется в ROI.</small></span></label><p>База рассрочки: <strong>${money(repairBase)}</strong> · включая ремонт · Общая стоимость ремонта: <strong>${money(finance.repair)}</strong></p></div>` : ""}<div class="payment-grid"><div class="payment-cell highlight"><span>Первоначальный взнос (${display(p?.downPercent)}%)</span><strong>${money(ip.down)}</strong></div><div class="payment-cell"><span>Рассрочка (${display(p?.installmentPercent)}% / ${display(p?.months)} мес.)</span><strong>${money(monthlyPart)}</strong></div><div class="payment-cell highlight"><span>Ежемесячный платёж</span><strong>${money(ip.monthly)}</strong></div><div class="payment-cell"><span>Финальный платёж (${display(p?.finalPercent)}%)</span><strong>${money(ip.final)}</strong></div></div><p class="payment-note">Финальный платёж вносится единовременно либо переоформляется в ипотеку — на выбор клиента.</p><p class="payment-note blue">${finalNote}</p><div class="payment-timeline"><div><i></i><strong>${display(p?.downPercent)}%</strong><small>СЕГОДНЯ</small></div><hr><div><i></i><strong>${display(p?.installmentPercent)}%</strong><small>${display(p?.months)} МЕС.</small></div><hr><div><i></i><strong>${display(p?.finalPercent)}%</strong><small>ФИНАЛЬНЫЙ ПЛАТЁЖ</small></div></div>${ip.missing ? `<p class="notice">${missing}: ${ip.missing.map(escape).join(", ")}</p>` : ""}</div></section>
-<section class="section" id="investment">${sectionHeading("07", "ROI-калькулятор")}<div class="roi-shell">${roiTabs}<div class="roi-layout"><div class="roi-main"><div class="roi-form-card"><div class="form-grid">${formFields}</div><label class="check"><input type="checkbox" id="indexation" ${finance.indexationEnabled ? "checked" : ""}>Учитывать индексацию цены за ночь</label><p class="model-note">Расчёт использует подтверждённые параметры проекта. Рост стоимости недвижимости в ROI не включён без исторических данных.</p></div><div class="roi-results"><h3>Финансовые результаты</h3>${r.missing ? `<p class="notice">${missing}: ${r.missing.map((key) => escape(labels[key] || key)).join(", ")}</p>` : ""}${expenseLine("Стоимость квартиры", resultValue(r.investment ? finance.price : null))}${expenseLine("Стоимость ремонта", money(finance.repair))}${expenseLine("Общая инвестиция", resultValue(r.investment))}${expenseLine("Валовая выручка", resultValue(r.gross))}${resultExpense("НДС", r.vat)}${expenseLine("Доход после НДС", resultValue(r.afterVat))}${resultExpense("Управление", r.management)}${expenseLine("Доход собственника", resultValue(r.owner))}${resultExpense("Налог на доход", r.tax)}${resultExpense("Обслуживание", finance.maintenance)}${expenseLine("Чистая прибыль за год 1", netLabel, "highlight")}${expenseLine("ROI (год 1)", roiLabel, "highlight")}${expenseLine("Ожидание до начала аренды", Number.isFinite(r.wait) ? `${Math.round(r.wait * 12)} мес.` : missing)}${expenseLine("Срок окупаемости (с даты покупки)", paybackLabel)}<label class="horizon-label">Накопленный доход <span>Период аренды, лет</span><input id="horizon" type="number" min="1" max="100" step="1" placeholder="${missing}"></label><p id="cumulative" class="notice"></p></div></div><aside class="card summary sticky-summary"><div class="eyebrow">ИТОГ</div><div class="summary-unit"><strong>${escape(projectDisplayName())}</strong><span>${a ? `Блок ${display(a.block)} · этаж ${display(a.floor)} · №${display(a.number)}` : missing}</span><span>${a ? `${display(a.type)} · ${display(a.area)} м²` : missing}</span><strong>${money(a?.price)}</strong></div><div class="summary-images"><div>${image(a?.plan, "Планировка квартиры")}<small>Планировка квартиры</small></div><div>${image(floor?.image, "Позиция на этаже")}<small>Позиция на этаже</small></div></div>${summaryRows}<button id="pdf" class="button full">Инвестиционный PDF ${arrowIcon}</button><small class="summary-note">Пересчитывается автоматически при изменении любого поля.</small></aside></div></div></section>
+<section class="section" id="installment">${sectionHeading("06", "Калькулятор рассрочки")}<div class="calc-shell"><div class="stage-tabs"><span class="active">01 · ВЫБОР ПЛАНА</span><span>02 · СТРУКТУРА ПЛАТЕЖЕЙ</span><span>03 · ГРАФИК ПЛАТЕЖЕЙ</span></div><div class="calc-context"><span>УСЛОВИЯ</span><strong>${unitContext(a)}</strong></div><div class="program-box"><strong>Блок ${display(a?.block)} · подтверждённые сценарии рассрочки</strong><label class="program-select-label">Программа рассрочки<select id="program"><option value="">Выберите подтверждённую программу</option>${availablePrograms.map((program) => `<option value="${escape(program.id)}" ${program.id === programId ? "selected" : ""}>${escape(programText(program))}</option>`).join("")}</select></label><p class="calc-note">${finalNote}</p></div>${p?.repairAllowed && renovationEnabled ? `<div class="repair-card"><label class="check"><input id="include-repair" type="checkbox" ${includeRepair ? "checked" : ""}><span><strong>Включить стоимость ремонта в рассрочку</strong><small>${unitRate(finance.repairPerM2, `${currencyLabel()}/м²`)} × ${formatNumber(finance.area)} м² · ${money(finance.repair)}. Влияет только на график платежей.</small></span></label><p>База рассрочки: <strong>${money(repairBase)}</strong> · ${includeRepair ? "с ремонтом" : "без ремонта"} · Стоимость ремонта остаётся в инвестиционных расходах.</p></div>` : ""}<div class="payment-grid"><div class="payment-cell highlight"><span>Первоначальный взнос (${display(p?.downPercent)}%)</span><strong>${money(ip.down)}</strong></div><div class="payment-cell"><span>Рассрочка (${display(p?.installmentPercent)}% / ${display(p?.months)} мес.)</span><strong>${money(monthlyPart)}</strong></div><div class="payment-cell highlight"><span>Ежемесячный платёж</span><strong>${money(ip.monthly)}</strong></div><div class="payment-cell"><span>Финальный платёж (${display(p?.finalPercent)}%)</span><strong>${money(ip.final)}</strong></div></div><p class="payment-note">Финальный платёж вносится единовременно либо переоформляется в ипотеку — на выбор клиента.</p><p class="payment-note blue">${finalNote}</p><div class="payment-timeline"><div><i></i><strong>${display(p?.downPercent)}%</strong><small>СЕГОДНЯ</small></div><hr><div><i></i><strong>${display(p?.installmentPercent)}%</strong><small>${display(p?.months)} МЕС.</small></div><hr><div><i></i><strong>${display(p?.finalPercent)}%</strong><small>ФИНАЛЬНЫЙ ПЛАТЁЖ</small></div></div>${ip.missing ? `<p class="notice">${missing}: ${ip.missing.map(escape).join(", ")}</p>` : ""}</div></section>
+<section class="section" id="investment">${sectionHeading("07", "ROI-калькулятор")}<div class="roi-shell roi-mode-${roiMode}">${roiTabs}<div class="roi-layout"><div class="roi-main"><div class="roi-form-card"><div class="form-grid">${formFields}</div><label class="check"><input type="checkbox" id="indexation" ${finance.indexationEnabled ? "checked" : ""}>Учитывать индексацию цены за ночь</label><p class="model-note">Расчёт использует подтверждённые параметры проекта. Рост стоимости недвижимости в ROI не включён без исторических данных.</p></div><div class="roi-results"><h3>Финансовые результаты</h3>${r.missing ? `<p class="notice">${missing}: ${r.missing.map((key) => escape(labels[key] || key)).join(", ")}</p>` : ""}${expenseLine("Стоимость квартиры", resultValue(r.investment ? finance.price : null))}${expenseLine("Стоимость ремонта", money(renovationEnabled ? finance.repair : 0))}${expenseLine("Общая инвестиция", resultValue(r.investment))}${expenseLine("Валовая выручка", resultValue(r.gross))}${resultExpense("НДС", r.vat)}${expenseLine("Доход после НДС", resultValue(r.afterVat))}${resultExpense("Управление", r.management)}${expenseLine("Доход собственника", resultValue(r.owner))}${resultExpense("Налог на доход", r.tax)}${resultExpense("Обслуживание", finance.maintenance)}${expenseLine("Чистая прибыль за год 1", netLabel, "highlight")}${expenseLine("ROI (год 1)", roiLabel, "highlight")}${expenseLine("Ожидание до начала аренды", Number.isFinite(r.wait) ? `${Math.round(r.wait * 12)} мес.` : missing)}${expenseLine("Срок окупаемости (с даты покупки)", paybackLabel)}<label class="horizon-label">Накопленный доход <span>Период аренды, лет</span><input id="horizon" type="number" min="1" max="100" step="1" placeholder="${missing}"></label><p id="cumulative" class="notice"></p></div></div><aside class="card summary sticky-summary"><div class="eyebrow">ИТОГ</div><div class="summary-unit"><strong>${escape(projectDisplayName())}</strong><span>${a ? `Блок ${display(a.block)} · этаж ${display(a.floor)} · №${display(a.number)}` : missing}</span><span>${a ? `${display(a.type)} · ${display(a.area)} м²` : missing}</span><strong>${money(a?.price)}</strong></div><div class="summary-images"><div>${image(a?.plan, "Планировка квартиры")}<small>Планировка квартиры</small></div><div>${image(floor?.image, "Позиция на этаже")}<small>Позиция на этаже</small></div></div>${summaryRows}<button id="pdf" class="button full">Инвестиционный PDF ${arrowIcon}</button><small class="summary-note">Пересчитывается автоматически при изменении любого поля.</small></aside></div></div></section>
 <details class="source-section"><summary>Данные проекта <span>Загрузить JSON или обновить источник</span></summary><div class="source-controls"><label class="outline upload">Загрузить JSON<input id="upload" type="file" accept="application/json"></label><input id="source-url" type="url" placeholder="HTTPS URL источника" value="${escape(project.source || "")}"><button id="connect" class="outline">Подключить</button><button id="refresh" class="outline" ${!project.source ? "disabled" : ""}>Обновить</button>${safe(project.presentation) ? `<a class="outline" target="_blank" rel="noopener" href="${escape(safe(project.presentation))}">Презентация ${arrowIcon}</a>` : ""}</div><p id="source-message" role="status"></p></details></main><footer><a class="brand" href="#">ESTATE</a><span>Инвестиционные решения на основе данных</span><span>Данные проекта требуют подтверждения источником</span></footer>`;
   refinePresentation(a, r, p, ip, floor);
   placeSharedSummary();
@@ -680,6 +730,16 @@ function bind() {
     finance.indexationEnabled = e.target.checked;
     render();
   };
+  const renovationToggle = document.getElementById("use-renovation");
+  if (renovationToggle)
+    renovationToggle.onchange = (e) => {
+      renovationEnabled = e.target.checked;
+      if (!renovationEnabled) {
+        includeRepair = false;
+        roiMode = "capitalization";
+      }
+      render();
+    };
   document.querySelectorAll("[data-roi-mode]").forEach((tab) => {
     tab.onclick = () => {
       roiMode = tab.dataset.roiMode;
@@ -688,9 +748,8 @@ function bind() {
   });
   document.getElementById("program").onchange = (e) => {
     programId = e.target.value;
-    includeRepair =
-      project.programs.find((program) => program.id === programId)
-        ?.repairAllowed === true;
+    includeRepair = renovationEnabled && project.programs.find((program) => program.id === programId)
+      ?.repairAllowed === true;
     render();
   };
   const repair = document.getElementById("include-repair");
@@ -699,20 +758,25 @@ function bind() {
       includeRepair = e.target.checked;
       render();
     };
-  const horizonInput = document.getElementById("horizon");
-  if (horizonInput) horizonInput.oninput = (e) => {
+  const handleHorizonInput = (e) => {
     const n = Number(e.target.value);
     incomeHorizon = Number.isInteger(n) && n > 0 && n <= 100 ? n : null;
+    document.querySelectorAll("#horizon, #capitalization-horizon").forEach((input) => {
+      if (input !== e.target) input.value = incomeHorizon ?? "";
+    });
     const cumulative = document.getElementById("cumulative");
     if (cumulative) cumulative.textContent =
       Number.isInteger(n) && n > 0 && n <= 100
         ? (() => {
-            const total = cumulativeIncome(finance, n);
+            const total = cumulativeIncome(calculationFinance(), n);
             return Number.isFinite(total) ? money(total) : missing;
           })()
         : missing;
     updateCapitalizationView();
   };
+  document.querySelectorAll("#horizon, #capitalization-horizon").forEach((input) => {
+    input.oninput = handleHorizonInput;
+  });
   for (const id of ["pdf", "pdf-top"])
     document.getElementById(id).onclick = () => window.print();
   document.getElementById("upload").onchange = async (e) => {
@@ -740,6 +804,7 @@ function load(data) {
     ...project.finance,
     purchaseDate: project.finance.purchaseDate || currentDate(),
   };
+  renovationEnabled = true;
   programId = "";
   includeRepair = false;
   const firstAvailable = project.apartments.find(
