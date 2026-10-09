@@ -318,9 +318,9 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 .summary-dates .finance-line strong { font-size:14px; font-weight:500; letter-spacing:0; }
 .summary-mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 12px; padding:6px 0; }
 .summary-mode-grid .finance-line { min-width:0; }
-.summary-mode-grid .finance-line strong { font-size:17px; }
+.summary-mode-grid .finance-line strong { font-size:15px; line-height:1.25; overflow-wrap:anywhere; }
 .summary-mode-grid .finance-line.accent strong,
-.summary-mode-grid .finance-line.positive strong { font-size:18px; }
+.summary-mode-grid .finance-line.positive strong { font-size:16px; }
 .summary-disclaimer { display:block; }
 .summary .full { margin-top:14px; padding:13px 12px; font-size:12px; }
 .summary .summary-note { color:var(--project-muted); font-size:9px; line-height:1.6; margin-top:10px; text-align:left; }

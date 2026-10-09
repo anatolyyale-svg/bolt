@@ -179,6 +179,48 @@ const yearsLabel = (years) => {
   const totalMonths = Math.max(0, Math.round(years * 12));
   return `${Math.floor(totalMonths / 12)} лет ${totalMonths % 12} мес.`;
 };
+const dateDurationLabel = (from, to) => {
+  const monthNumbers = {
+    январь: 1, января: 1, февраль: 2, февраля: 2, март: 3, марта: 3,
+    апрель: 4, апреля: 4, май: 5, мая: 5, июнь: 6, июня: 6,
+    июль: 7, июля: 7, август: 8, августа: 8, сентябрь: 9, сентября: 9,
+    октябрь: 10, октября: 10, ноябрь: 11, ноября: 11, декабрь: 12, декабря: 12,
+  };
+  const normalize = (value) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return value;
+    const match = String(value || "").trim().toLowerCase().match(/^([а-яё]+)\s+(\d{4})$/);
+    return match && monthNumbers[match[1]]
+      ? `${match[2]}-${String(monthNumbers[match[1]]).padStart(2, "0")}-01`
+      : null;
+  };
+  const startValue = normalize(from);
+  const endValue = normalize(to);
+  if (!startValue || !endValue) return null;
+  const start = new Date(`${startValue}T00:00:00`);
+  const end = new Date(`${endValue}T00:00:00`);
+  if (Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) || end < start)
+    return null;
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth();
+  return yearsLabel(months / 12);
+};
+const rentalPaybackLabel = (result) => {
+  if (result?.paybackMissing?.length)
+    return `Недостаточно данных: ${result.paybackMissing.map((key) => labels[key] || key).join(", ")}`;
+  return Number.isFinite(result?.payback)
+    ? yearsLabel(result.payback)
+    : "Не достигается за 100 лет модели";
+};
+const capitalizationPaybackLabel = (data) => {
+  const saleValue = renovationEnabled ? data.withRepairValue : data.withoutRepairValue;
+  const investment = Number.isFinite(data.purchasePrice)
+    ? data.purchasePrice + (renovationEnabled ? data.repairCost || 0 : 0)
+    : null;
+  if (!Number.isFinite(saleValue) || !Number.isFinite(investment))
+    return "Недостаточно данных для оценки возврата";
+  if (saleValue < investment) return "Не достигается: прогноз продажи ниже вложений";
+  return dateDurationLabel(finance.purchaseDate, project.completionDate) ||
+    "Недостаточно данных: даты покупки или передачи";
+};
 const expenseLine = (label, value, tone = "") =>
   `<div class="finance-line ${tone}"><span>${label}</span><strong>${value}</strong></div>`;
 const resultValue = (value) => (Number.isFinite(value) ? money(value) : missing);
@@ -248,7 +290,7 @@ function updateCapitalizationView() {
     element.textContent = resultValue(total);
   });
   const summaryLines = document.querySelectorAll(".summary-rental-grid .finance-line");
-  if (summaryLines.length >= 5) {
+  if (summaryLines.length >= 6) {
     const investment = Number.isFinite(data.purchasePrice) && Number.isFinite(data.repairCost)
       ? data.purchasePrice + data.repairCost
       : null;
@@ -257,13 +299,9 @@ function updateCapitalizationView() {
       : null;
     summaryLines[1].querySelector("span").textContent = `ДОХОД ОТ АРЕНДЫ · ${incomeHorizon ?? missing} ЛЕТ`;
     summaryLines[1].querySelector("strong").textContent = resultValue(rental);
-    summaryLines[2].querySelector("strong").textContent = resultValue(total);
-    summaryLines[3].querySelector("strong").textContent = Number.isFinite(percent) ? `${formatNumber(percent)} %` : missing;
-    summaryLines[4].querySelector("strong").textContent = Number.isFinite(total)
-      ? total >= 0
-        ? `Продажа при передаче ключей + ${incomeHorizon} лет аренды`
-        : "Не достигается в выбранном периоде"
-      : "Недостаточно данных для оценки возврата";
+    summaryLines[3].querySelector("strong").textContent = resultValue(total);
+    summaryLines[4].querySelector("strong").textContent = Number.isFinite(percent) ? `${formatNumber(percent)} %` : missing;
+    summaryLines[5].querySelector("strong").textContent = rentalPaybackLabel(roi(calculationFinance()));
   }
 }
 
@@ -339,31 +377,22 @@ function refinePresentation(unit, result, program, payment, floor) {
   const combinedResult = Number.isFinite(capSummary.withRepairValue) && Number.isFinite(capSummary.purchasePrice) && Number.isFinite(capSummary.repairCost) && Number.isFinite(rentalIncome)
     ? capSummary.withRepairValue + rentalIncome - capSummary.purchasePrice - capSummary.repairCost
     : null;
-  const saleValue = renovationEnabled ? capSummary.withRepairValue : capSummary.withoutRepairValue;
   const saleInvestment = Number.isFinite(capSummary.purchasePrice)
     ? capSummary.purchasePrice + (renovationEnabled ? capSummary.repairCost || 0 : 0)
     : null;
-  const salePayback = Number.isFinite(saleValue) && Number.isFinite(saleInvestment)
-    ? saleValue >= saleInvestment
-      ? `При передаче ключей · ${dateLabel(project.completionDate)}`
-      : "Не достигается: прогноз ниже вложений"
-    : "Недостаточно данных для оценки возврата";
-  const combinedPayback = Number.isFinite(combinedResult)
-    ? combinedResult >= 0
-      ? `Продажа при передаче ключей + ${incomeHorizon} лет аренды`
-      : "Не достигается в выбранном периоде"
-    : "Недостаточно данных для оценки возврата";
+  const salePayback = capitalizationPaybackLabel(capSummary);
+  const rentalPayback = rentalPaybackLabel(result);
   const combinedPercent = Number.isFinite(combinedResult) && Number.isFinite(saleInvestment) && saleInvestment > 0
     ? combinedResult / saleInvestment * 100
     : null;
   const percentageLabel = (value) => Number.isFinite(value) ? `${formatNumber(value)} %` : missing;
   const gainLabel = (gain, percent) => `${resultValue(gain)} · ${percentageLabel(percent)}`;
   const summaryModel = roiMode === "rental"
-    ? `<div class="summary-yield">${expenseLine("Чистая прибыль / год", money(result.net), "positive")}${expenseLine("ROI · год 1", Number.isFinite(result.roi) ? formatNumber(result.roi) + " %" : missing, "accent")}</div>
-    <div class="summary-dates">${expenseLine("Сдача комплекса", display(project.completionDate))}${expenseLine("Окупаемость от покупки", result.paybackMissing?.length ? missing : result.payback == null ? "Не достигнута" : yearsLabel(result.payback))}</div>`
+      ? `<div class="summary-yield">${expenseLine("Чистая прибыль / год", money(result.net), "positive")}${expenseLine("ROI · год 1", Number.isFinite(result.roi) ? formatNumber(result.roi) + " %" : missing, "accent")}</div>
+    <div class="summary-dates">${expenseLine("Сдача комплекса", display(project.completionDate))}${expenseLine("Окупаемость", rentalPayback)}</div>`
     : roiMode === "capitalization"
-      ? `<div class="summary-mode-grid">${expenseLine("Прогноз без ремонта", resultValue(capSummary.withoutRepairValue))}${expenseLine("Прирост без ремонта", gainLabel(capSummary.withoutRepairGain, capSummary.withoutRepairPercent), "accent")}${renovationEnabled ? `${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine("Прирост с ремонтом", gainLabel(capSummary.withRepairGain, capSummary.withRepairPercent), "positive")}` : ""}${expenseLine("Окупаемость при продаже", salePayback)}</div><p class="summary-note summary-disclaimer">Прогнозные значения не являются гарантией доходности. Возврат оценивается только при продаже на дату передачи ключей.</p>`
-      : `<div class="summary-mode-grid summary-rental-grid">${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine(`Доход от аренды · ${incomeHorizon ?? missing} лет`, resultValue(rentalIncome), "positive")}${expenseLine("Совокупный результат", resultValue(combinedResult), "accent")}${expenseLine("Доходность сценария", percentageLabel(combinedPercent), "positive")}${expenseLine("Окупаемость", combinedPayback)}</div><p class="summary-note summary-disclaimer">Стоимость ремонта вычтена один раз. Продажа учитывается только на момент передачи ключей.</p>`;
+      ? `<div class="summary-mode-grid">${expenseLine("Прогноз без ремонта", resultValue(capSummary.withoutRepairValue))}${expenseLine("Прирост без ремонта", gainLabel(capSummary.withoutRepairGain, capSummary.withoutRepairPercent), "accent")}${renovationEnabled ? `${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine("Прирост с ремонтом", gainLabel(capSummary.withRepairGain, capSummary.withRepairPercent), "positive")}` : ""}${expenseLine("Окупаемость", salePayback)}</div><p class="summary-note summary-disclaimer">Прогнозные значения не являются гарантией доходности. Окупаемость означает продажу на дату передачи ключей.</p>`
+      : `<div class="summary-mode-grid summary-rental-grid">${expenseLine("Прогноз с ремонтом", resultValue(capSummary.withRepairValue))}${expenseLine(`Доход от аренды · ${incomeHorizon ?? missing} лет`, resultValue(rentalIncome), "positive")}${expenseLine("Прирост стоимости актива", gainLabel(capSummary.withRepairGain, capSummary.withRepairPercent), "accent")}${expenseLine("Результат при продаже + аренда", resultValue(combinedResult), "positive")}${expenseLine("Доходность сценария", percentageLabel(combinedPercent), "positive")}${expenseLine("Окупаемость", rentalPayback)}</div><p class="summary-note summary-disclaimer">Прирост стоимости является нереализованным до продажи. Стоимость ремонта вычтена один раз.</p>`;
   const modelLabel = roiMode === "rental" ? "Авторасчёт" : roiMode === "capitalization" ? "Капитализация" : "Капитализация + аренда";
   summary.innerHTML = `<div class="summary-heading"><span class="eyebrow">ИТОГ</span><span class="summary-live"><i></i> ${modelLabel}</span></div>
     <div class="summary-unit"><small>${escape(projectDisplayName())}</small><h3>${unit ? `Блок ${display(unit.block)} · №${display(unit.number)}` : "Выберите квартиру"}</h3>
