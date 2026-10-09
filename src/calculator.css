@@ -701,9 +701,9 @@ body, button, input, select, table {
   font-size:clamp(22px,1.85vw,29px);
 }
 .summary-yield .finance-line {
-  grid-template-rows:40px auto;
-  gap:7px;
-  padding:8px 0;
+  grid-template-rows:auto auto;
+  gap:8px;
+  padding:4px 0;
 }
 .summary-yield .finance-line > span {
   min-height:0;
@@ -720,7 +720,7 @@ body, button, input, select, table {
 }
 @media (max-width:760px) {
   .payment-cell strong { font-size:25px; }
-  .summary-yield .finance-line { grid-template-rows:36px auto; }
+  .summary-yield .finance-line { grid-template-rows:auto auto; gap:8px; padding:4px 0; }
   .summary-yield .finance-line > strong,
   .summary-yield .finance-line.accent > strong { font-size:21px; }
 }
