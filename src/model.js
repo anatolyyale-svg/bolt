@@ -29,15 +29,13 @@ const driveFile = (file) =>
     : null);
 
 // Converts the Centropolis source document into the generic project contract.
-// Values confirmed by the user (availability, December 2028, and installment programs)
-// are applied here; unconfirmed fields remain null and therefore block calculations.
+// Project-specific assumptions stay in the JSON source so the UI remains reusable.
 export function normalizeProject(input) {
   if (!input?.project || !Array.isArray(input.apartments)) return input;
   const rental = input.rental_model || {},
     renovation = input.renovation || {},
     media = input.media || {};
-  // Nightly rates are supplied and confirmed by the user for this project.
-  const rates = { studio: 120, one_bedroom: 225, two_bedroom: 400 };
+  const rates = rental.nightly_rates || {};
   const layoutByType = new Map(
     (input.plans?.apartment_layouts || []).map((layout) => [
       layout.apartment_type,
@@ -68,7 +66,9 @@ export function normalizeProject(input) {
       area: a.area_m2,
       pricePerMeter: a.price_per_m2,
       price: a.price_total,
-      status: a.status ?? "available",
+      status:
+        a.status ??
+        (input.inventory?.availability_confirmed_by_user ? "available" : null),
       plan: null,
       plan3d: null,
       nightly,
@@ -78,6 +78,7 @@ export function normalizeProject(input) {
       repairPerM2: renovation.model_cost_per_m2 ?? null,
       repair,
       maintenance,
+      maintenancePerM2: rental.maintenance_per_m2_per_month ?? null,
       source: a.source,
       illustrativeLayout: layout?.id || null,
     };
@@ -101,7 +102,10 @@ export function normalizeProject(input) {
       .map((item) => driveImage(item))
       .filter(Boolean),
     seaDistance: input.construction?.distance_to_sea_m ?? null,
-    completionDate: "Декабрь 2028",
+    completionDate:
+      input.construction?.completion_label ||
+      input.construction?.completion_date ||
+      null,
     presentation: input.links?.presentation?.url || null,
     camera: null,
     location: {
@@ -118,10 +122,12 @@ export function normalizeProject(input) {
     floors,
     programs: (input.installment_programs || []).map((program) => ({
       id: program.id,
+      block: program.block ?? null,
       name: `Блок ${program.block}: ${program.down_payment_percent}% / ${program.installment_share_percent}% / ${program.final_payment_percent}%`,
       downPercent: program.down_payment_percent,
       months: program.monthly_payment_count,
       finalPercent: program.final_payment_percent,
+      finalMonth: program.final_payment_month ?? null,
       repairAllowed: renovation.calculator_can_include_renovation === true,
       conditions:
         "Подтверждено пользователем; договорные документы будут добавлены позже.",
@@ -138,15 +144,18 @@ export function normalizeProject(input) {
       management: rental.management_company_share_percent ?? null,
       tax: rental.owner_income_tax_percent ?? null,
       maintenance: null,
-      other: null,
+      maintenancePerM2: rental.maintenance_per_m2_per_month ?? null,
       purchaseDate: null,
-      operationDate: null,
+      operationDate:
+        input.construction?.rental_operations_start_date ||
+        rental.operation_start_date ||
+        null,
     },
     source: null,
     sourceFormat: input.schema_version || null,
     sourceNotes: [
       ...(input.data_quality?.missing_or_unconfirmed || []),
-      "Ночные ставки подтверждены пользователем: студия 120 $, 1+1 225 $, 2+1 400 $.",
+      ...(rental.nightly_rate_basis ? [rental.nightly_rate_basis] : []),
     ],
   };
 }
@@ -159,13 +168,23 @@ export function validateProject(input) {
     if (!a.id || ids.has(String(a.id)))
       throw Error("У квартир должны быть уникальные id");
     ids.add(String(a.id));
-    if (!["available", "reserved", "sold"].includes(a.status))
+    if (
+      a.status != null &&
+      !["available", "reserved", "sold"].includes(a.status)
+    )
       throw Error("Неизвестный статус квартиры");
     for (const k of ["area", "price", "pricePerMeter"])
       if (a[k] != null && (!Number.isFinite(a[k]) || a[k] < 0))
         throw Error(`Некорректное поле ${k}`);
   }
   return { ...emptyProject, ...data, finance: { ...data.finance } };
+}
+export function applicablePrograms(project, unit) {
+  if (!unit) return [];
+  return (project.programs || []).filter(
+    (program) =>
+      program.block == null || String(program.block) === String(unit.block),
+  );
 }
 export function installment(price, program, repair, included) {
   const absent = [];
@@ -177,6 +196,9 @@ export function installment(price, program, repair, included) {
   if (included && !Number.isFinite(repair)) absent.push("Стоимость ремонта");
   if (absent.length) return { missing: absent };
   if (
+    price < 0 ||
+    (included && repair < 0) ||
+    !Number.isInteger(program.months) ||
     program.months <= 0 ||
     program.downPercent < 0 ||
     program.finalPercent < 0 ||
@@ -196,8 +218,16 @@ export function installment(price, program, repair, included) {
 export function daysInYear(year) {
   return (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 86400000;
 }
+export function isCalendarDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    Number.isFinite(date.valueOf()) && date.toISOString().slice(0, 10) === value
+  );
+}
 export function roi(v) {
-  const keys = [
+  const required = [
     "price",
     "repair",
     "nightly",
@@ -206,71 +236,142 @@ export function roi(v) {
     "management",
     "tax",
     "maintenance",
-    "other",
   ];
-  const absent = keys.filter((k) => !Number.isFinite(v[k]));
-  for (const k of ["purchaseDate", "operationDate"])
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(v[k] || "") ||
-      !Number.isFinite(Date.parse(v[k]))
-    )
-      absent.push(k);
-  if (v.indexationEnabled && !Number.isFinite(v.indexation))
-    absent.push("indexation");
-  if (absent.length) return { missing: absent };
-  const year = Number(v.operationDate.slice(0, 4)),
-    days = daysInYear(year);
+  const missingFields = new Set();
+  const errors = [];
+  const valid = {};
+  const reject = (field, message) => {
+    valid[field] = false;
+    missingFields.add(field);
+    errors.push({ field, message });
+  };
+  for (const key of required) {
+    valid[key] = Number.isFinite(v[key]) && v[key] >= 0;
+    if (!valid[key]) {
+      missingFields.add(key);
+      if (Number.isFinite(v[key]) && v[key] < 0)
+        reject(key, "Значение не может быть отрицательным");
+    }
+  }
+  for (const key of ["vat", "management", "tax"])
+    if (valid[key] && v[key] > 100) {
+      missingFields.add(key);
+      reject(key, "Процент должен быть от 0 до 100");
+    }
+  const dateValid = {};
+  for (const key of ["purchaseDate", "operationDate"]) {
+    dateValid[key] = isCalendarDate(v[key]);
+    if (!dateValid[key] && v[key])
+      reject(key, "Укажите существующую календарную дату");
+  }
   if (
-    keys.some((k) => v[k] < 0) ||
-    v.nights > days ||
-    ["vat", "management", "tax"].some((k) => v[k] > 100) ||
-    v.operationDate < v.purchaseDate ||
-    (v.indexationEnabled && v.indexation < 0)
-  )
-    return { missing: ["Корректные диапазоны и даты"] };
-  const investment = v.price + v.repair;
-  if (investment <= 0) return { missing: ["Положительная общая инвестиция"] };
-  const gross = v.nightly * v.nights,
-    vat = (gross * v.vat) / 100,
-    afterVat = gross - vat,
-    management = (afterVat * v.management) / 100,
-    owner = afterVat - management,
-    tax = (owner * v.tax) / 100,
-    net = owner - tax - v.maintenance - v.other;
-  let accumulated = 0,
-    payback = null;
+    dateValid.purchaseDate &&
+    dateValid.operationDate &&
+    v.operationDate < v.purchaseDate
+  ) {
+    dateValid.operationDate = false;
+    reject("operationDate", "Начало эксплуатации не может быть раньше покупки");
+  }
+  const maximumNights = dateValid.operationDate
+    ? daysInYear(Number(v.operationDate.slice(0, 4)))
+    : 366;
+  if (valid.nights && v.nights > maximumNights) {
+    missingFields.add("nights");
+    reject("nights", "Оплаченных ночей не может быть больше дней в году");
+  }
+  const indexationValid =
+    !v.indexationEnabled ||
+    (Number.isFinite(v.indexation) && v.indexation >= 0);
+  if (!indexationValid && Number.isFinite(v.indexation))
+    reject("indexation", "Индексация не может быть отрицательной");
+
+  // Annual figures are independent of the purchase and operation dates.
+  const result = {};
+  if (valid.price && valid.repair) result.investment = v.price + v.repair;
+  if (valid.nightly && valid.nights) result.gross = v.nightly * v.nights;
+  if (Number.isFinite(result.gross) && valid.vat) {
+    result.vat = (result.gross * v.vat) / 100;
+    result.afterVat = result.gross - result.vat;
+  }
+  if (Number.isFinite(result.afterVat) && valid.management) {
+    result.management = (result.afterVat * v.management) / 100;
+    result.owner = result.afterVat - result.management;
+  }
+  if (Number.isFinite(result.owner) && valid.tax) {
+    result.tax = (result.owner * v.tax) / 100;
+    if (valid.maintenance)
+      result.net = result.owner - result.tax - v.maintenance;
+  }
+  if (result.investment > 0 && Number.isFinite(result.net))
+    result.roi = (result.net / result.investment) * 100;
+  if (result.investment === 0)
+    reject(
+      "investment",
+      "Общая инвестиция должна быть больше нуля для расчёта ROI",
+    );
+
+  const paybackMissing = [];
+  if (!dateValid.purchaseDate) paybackMissing.push("purchaseDate");
+  if (!dateValid.operationDate) paybackMissing.push("operationDate");
+  if (!indexationValid) paybackMissing.push("indexation");
+  if (!Number.isFinite(result.investment)) paybackMissing.push("investment");
+  if (!Number.isFinite(result.net)) paybackMissing.push("net");
+  if (missingFields.size) result.missing = [...missingFields];
+  result.paybackMissing = [...new Set(paybackMissing)];
+  if (errors.length) result.errors = errors;
+  if (dateValid.purchaseDate && dateValid.operationDate)
+    result.wait =
+      (Date.parse(v.operationDate) - Date.parse(v.purchaseDate)) /
+      86400000 /
+      365.2425;
+  if (result.paybackMissing.length || !Number.isFinite(result.gross))
+    return result;
+
+  let accumulated = 0;
+  let payback = null;
   const annual = [];
-  // Annual cash flow model, expenses held fixed, rent indexation starts in the second operating year.
   for (let y = 0; y < 100; y++) {
-    const g =
-      gross * Math.pow(1 + (v.indexationEnabled ? v.indexation : 0) / 100, y);
+    const gross =
+      result.gross *
+      Math.pow(1 + (v.indexationEnabled ? v.indexation : 0) / 100, y);
     const profit =
-      g * (1 - v.vat / 100) * (1 - v.management / 100) * (1 - v.tax / 100) -
-      v.maintenance -
-      v.other;
+      gross * (1 - v.vat / 100) * (1 - v.management / 100) * (1 - v.tax / 100) -
+      v.maintenance;
     annual.push(profit);
-    if (profit > 0 && accumulated + profit >= investment) {
-      payback = y + (investment - accumulated) / profit;
+    if (profit > 0 && accumulated + profit >= result.investment) {
+      payback = y + (result.investment - accumulated) / profit;
       break;
     }
     accumulated += profit;
   }
-  const wait =
-    (Date.parse(v.operationDate) - Date.parse(v.purchaseDate)) /
-    86400000 /
-    365.2425;
   return {
-    investment,
-    gross,
-    vat,
-    afterVat,
-    management,
-    owner,
-    tax,
-    net,
-    roi: (net / investment) * 100,
-    payback: payback == null ? null : payback + wait,
+    ...result,
+    payback: payback == null ? null : payback + result.wait,
     annual,
-    wait,
   };
+}
+
+export function cumulativeIncome(finance, years) {
+  if (!Number.isInteger(years) || years < 1 || years > 100) return null;
+  const result = roi(finance);
+  if (
+    !Number.isFinite(result.net) ||
+    (finance.indexationEnabled &&
+      (!Number.isFinite(finance.indexation) || finance.indexation < 0))
+  )
+    return null;
+  let total = 0;
+  for (let year = 0; year < years; year++) {
+    total +=
+      result.gross *
+        Math.pow(
+          1 + (finance.indexationEnabled ? finance.indexation : 0) / 100,
+          year,
+        ) *
+        (1 - finance.vat / 100) *
+        (1 - finance.management / 100) *
+        (1 - finance.tax / 100) -
+      finance.maintenance;
+  }
+  return Number.isFinite(total) ? total : null;
 }

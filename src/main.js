@@ -7,9 +7,16 @@ import {
   validateProject,
   installment,
   roi,
+  cumulativeIncome,
+  applicablePrograms,
   daysInYear,
 } from "./model.js";
 import centropolisSource from "../centropolis.json";
+function currentDate() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
 let project = validateProject(centropolisSource),
   selected = null,
   compare = new Set(),
@@ -20,11 +27,16 @@ let project = validateProject(centropolisSource),
     type: "",
     sort: "number",
   },
-  finance = { ...project.finance },
+  finance = {
+    ...project.finance,
+    purchaseDate: project.finance.purchaseDate || currentDate(),
+  },
   programId = "",
-  includeRepair = false;
+  includeRepair = false,
+  occupancyMode = "percent";
 const labels = {
   price: "Стоимость квартиры",
+  area: "Площадь, м²",
   repairPerM2: "Стоимость ремонта, $/м²",
   nightly: "Аренда за ночь",
   nights: "Оплаченные ночи",
@@ -33,7 +45,6 @@ const labels = {
   management: "Управление, %",
   tax: "Налог на доход, %",
   maintenance: "Обслуживание в год",
-  other: "Прочие расходы в год",
   indexation: "Индексация аренды, %",
   purchaseDate: "Дата покупки",
   operationDate: "Начало эксплуатации",
@@ -73,21 +84,21 @@ function select(id, redraw = true) {
   const a = project.apartments.find((a) => a.id === id);
   if (!a || a.status !== "available") return;
   selected = id;
-  const blockProgram =
-    project.programs.find((program) =>
-      String(program.id).startsWith(`${a.block}_`),
-    ) || project.programs[0];
+  const blockProgram = applicablePrograms(project, a)[0];
   programId = blockProgram?.id || "";
   includeRepair = blockProgram?.repairAllowed === true;
   finance = {
     ...project.finance,
     price: a.price,
+    area: a.area,
     repairPerM2: a.repairPerM2 ?? project.finance.repairPerM2,
     repair: a.repair ?? project.finance.repair,
+    maintenancePerM2: a.maintenancePerM2 ?? project.finance.maintenancePerM2,
     nightly: a.nightly ?? project.finance.nightly,
     nights: a.nights ?? project.finance.nights,
     occupancy: a.occupancy ?? project.finance.occupancy,
     maintenance: a.maintenance ?? project.finance.maintenance,
+    purchaseDate: finance.purchaseDate || currentDate(),
   };
   if (redraw) render();
 }
@@ -101,7 +112,6 @@ function metrics(result) {
     ["Доход собственника", money(result.owner)],
     ["Налог на доход", money(result.tax)],
     ["Обслуживание", money(finance.maintenance)],
-    ["Прочие расходы", money(finance.other)],
     ["Чистая годовая прибыль", money(result.net)],
     [
       "ROI за год",
@@ -109,7 +119,7 @@ function metrics(result) {
     ],
     [
       "Окупаемость от покупки",
-      result.missing
+      result.paybackMissing?.length
         ? missing
         : result.payback == null
           ? "Не достигнута в горизонте модели"
@@ -125,6 +135,7 @@ function render() {
     floor = project.floors.find(
       (f) => f.block === a?.block && f.number === a?.floor,
     );
+  const availablePrograms = applicablePrograms(project, a);
   const floorUnits = a
     ? project.apartments.filter(
         (unit) => unit.block === a.block && unit.floor === a.floor,
@@ -238,7 +249,7 @@ ${
           .join("")}</svg>`
       : ""
   }</div>${floorUnits.length ? `<div class="floor-units"><small>Квартиры на этаже</small>${floorUnits.map((unit) => `<button class="floor-unit ${selected === unit.id ? "selected" : unit.status}" data-select="${escape(unit.id)}">${display(unit.number)}</button>`).join("")}</div>` : ""}<div class="legend"><span>● Свободна</span><span class="yellow">● Выбрана</span><span class="muted">● Забронирована</span><span class="red">● Продана</span></div></article></div></section>
-<section class="section" id="installment"><div class="eyebrow">03 / УСЛОВИЯ ПОКУПКИ</div><h2>Рассрочка застройщика</h2><div class="card"><label>Программа рассрочки<select id="program"><option value="">Выберите подтверждённую программу</option>${project.programs.map((p) => `<option value="${escape(p.id)}" ${p.id === programId ? "selected" : ""}>${escape(p.name)}</option>`).join("")}</select></label>${p?.repairAllowed ? `<label class="check"><input id="include-repair" type="checkbox" ${includeRepair ? "checked" : ""}>Включить ремонт в рассрочку</label>` : ""}<p class="muted">${display(p?.conditions)}</p><div class="detail-grid">${[
+<section class="section" id="installment"><div class="eyebrow">03 / УСЛОВИЯ ПОКУПКИ</div><h2>Рассрочка застройщика</h2><div class="card"><label>Программа рассрочки<select id="program"><option value="">Выберите подтверждённую программу</option>${availablePrograms.map((p) => `<option value="${escape(p.id)}" ${p.id === programId ? "selected" : ""}>${escape(p.name)}</option>`).join("")}</select></label>${p?.repairAllowed ? `<label class="check"><input id="include-repair" type="checkbox" ${includeRepair ? "checked" : ""}>Включить ремонт в рассрочку</label>` : ""}<p class="muted">${display(p?.conditions)}</p><div class="detail-grid">${[
     ["Стоимость квартиры", money(a?.price)],
     [
       "Ремонт в рассрочке",
@@ -352,12 +363,19 @@ function bind() {
             : el.value === ""
               ? null
               : Number(el.value);
-        if (k === "repairPerM2") {
+        if (["repairPerM2", "area"].includes(k)) {
           const selectedApartment = apartment();
+          const area = Number.isFinite(finance.area)
+            ? finance.area
+            : selectedApartment?.area;
           finance.repair =
             Number.isFinite(finance.repairPerM2) &&
-            Number.isFinite(selectedApartment?.area)
-              ? finance.repairPerM2 * selectedApartment.area
+            Number.isFinite(area)
+              ? finance.repairPerM2 * area
+              : null;
+          if (Number.isFinite(finance.maintenancePerM2))
+            finance.maintenance = Number.isFinite(area)
+              ? finance.maintenancePerM2 * area * 12
               : null;
         }
         if (["nights", "occupancy", "operationDate"].includes(k)) {
@@ -365,7 +383,10 @@ function bind() {
             Number(finance.operationDate?.slice(0, 4)) ||
               new Date().getFullYear(),
           );
-          if (k === "occupancy" && Number.isFinite(finance.occupancy))
+          if (k === "occupancy" && occupancyMode === "days") {
+            finance.nights = Number(finance.occupancy);
+            finance.occupancy = (finance.nights * 100) / days;
+          } else if (k === "occupancy" && Number.isFinite(finance.occupancy))
             finance.nights = (finance.occupancy * days) / 100;
           else if (Number.isFinite(finance.nights))
             finance.occupancy = (finance.nights / days) * 100;
@@ -373,6 +394,31 @@ function bind() {
         render();
       }),
   );
+  const occupancyInput = document.querySelector('[data-finance="occupancy"]');
+  if (occupancyInput) {
+    const label = occupancyInput.closest("label");
+    const toggle = document.createElement("div");
+    toggle.className = "occupancy-toggle";
+    for (const [mode, text] of [
+      ["percent", "В процентах"],
+      ["days", "В днях"],
+    ]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `occupancy-mode${occupancyMode === mode ? " active" : ""}`;
+      button.textContent = text;
+      button.onclick = () => {
+        occupancyMode = mode;
+        render();
+      };
+      toggle.append(button);
+    }
+    label?.insertBefore(toggle, occupancyInput);
+    if (occupancyMode === "days")
+      occupancyInput.value = Number.isFinite(finance.nights)
+        ? finance.nights
+        : "";
+  }
   document.getElementById("indexation").onchange = (e) => {
     finance.indexationEnabled = e.target.checked;
     render();
@@ -393,27 +439,12 @@ function bind() {
   document.getElementById("horizon").oninput = (e) => {
     const n = Number(e.target.value),
       r = roi(finance);
-    document.getElementById("cumulative").textContent = r.missing
-      ? missing
-      : Number.isInteger(n) && n > 0 && n <= 100
-        ? money(
-            Array.from(
-              { length: n },
-              (_, y) =>
-                r.gross *
-                  Math.pow(
-                    1 +
-                      (finance.indexationEnabled ? finance.indexation : 0) /
-                        100,
-                    y,
-                  ) *
-                  (1 - finance.vat / 100) *
-                  (1 - finance.management / 100) *
-                  (1 - finance.tax / 100) -
-                finance.maintenance -
-                finance.other,
-            ).reduce((s, v) => s + v, 0),
-          )
+    document.getElementById("cumulative").textContent =
+      Number.isInteger(n) && n > 0 && n <= 100
+        ? (() => {
+            const total = cumulativeIncome(finance, n);
+            return Number.isFinite(total) ? money(total) : missing;
+          })()
         : missing;
   };
   for (const id of ["pdf", "pdf-top"])
@@ -437,7 +468,10 @@ function load(data) {
   project = validateProject(data);
   selected = null;
   compare.clear();
-  finance = { ...project.finance };
+  finance = {
+    ...project.finance,
+    purchaseDate: project.finance.purchaseDate || currentDate(),
+  };
   programId = "";
   includeRepair = false;
   const firstAvailable = project.apartments.find(
@@ -465,7 +499,10 @@ async function fetchSource(url) {
       select(previous);
     else {
       selected = null;
-      finance = { ...project.finance };
+      finance = {
+        ...project.finance,
+        purchaseDate: project.finance.purchaseDate || currentDate(),
+      };
       const firstAvailable = project.apartments.find(
         (a) => a.status === "available",
       );

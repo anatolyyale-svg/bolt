@@ -177,6 +177,28 @@
 #investment .summary {
   background: #f7f8f6;
 }
+.occupancy-toggle {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 4px;
+}
+.occupancy-mode {
+  background: #fff;
+  border: 1px solid #cdd7df;
+  border-radius: 999px;
+  color: #18212b;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+.occupancy-mode:hover {
+  border-color: #0878ad;
+  color: #0878ad;
+}
+.occupancy-mode.active {
+  background: #0878ad;
+  border-color: #0878ad;
+  color: #fff;
+}
 .floor-units {
   align-items: center;
   display: flex;

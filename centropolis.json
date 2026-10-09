@@ -624,8 +624,9 @@
   "construction": {
     "status": "under_construction",
     "completion_date": null,
+    "completion_label": "Декабрь 2028",
     "contractual_completion_date": null,
-    "rental_operations_start_date": null,
+    "rental_operations_start_date": "2029-05-30",
     "distance_to_sea_m": 50,
     "distance_to_sea_basis": "заявлено на сайте проекта и в рабочем документе; не геодезическое измерение",
     "distance_source_ids": [
@@ -672,7 +673,8 @@
       "studio": 19,
       "two_bedroom": 13
     },
-    "confirmed_current_available_count": null,
+    "confirmed_current_available_count": 122,
+    "availability_confirmed_by_user": true,
     "live_availability": false,
     "price_per_m2_min": 3085.0,
     "price_per_m2_max": 5655.0,
@@ -5234,11 +5236,11 @@
     "source_id": "drive_project_parameters",
     "currency": "USD",
     "nightly_rates": {
-      "studio": 144,
-      "one_bedroom": 270,
-      "two_bedroom": 480
+      "studio": 120,
+      "one_bedroom": 225,
+      "two_bedroom": 400
     },
-    "nightly_rate_basis": "В рабочем документе: ставки Renaissance × 1.20. Рыночная проверка Centropolis не представлена.",
+    "nightly_rate_basis": "Ставки подтверждены пользователем для сценария Centropolis.",
     "occupancy_percent": 60,
     "paid_nights_per_year": 219,
     "nightly_rate_annual_indexation_percent": 2.7,
@@ -5252,15 +5254,6 @@
     "owner_income_tax_basis_in_source": "owner_share_after_management_split",
     "maintenance_per_m2_per_month": 2,
     "confirmed_maintenance_per_m2_per_month": null,
-    "other_expenses": {
-      "booking_platform_commission_percent": null,
-      "utilities_per_year": null,
-      "insurance_per_year": null,
-      "cleaning_per_stay": null,
-      "furniture_replacement_reserve_per_year": null,
-      "property_tax_per_year": null,
-      "other_annual_expenses": null
-    },
     "tax_applicability_legally_verified": false,
     "calculation_steps_as_recorded": [
       "gross_revenue = nightly_rate * paid_nights_per_year",
@@ -5272,7 +5265,7 @@
       "maintenance = area_m2 * 2 * 12",
       "model_net_income_before_unspecified_expenses = owner_share - model_owner_tax - maintenance"
     ],
-    "note": "Параметры перенесены из актуального документа на Диске. Они не подтверждают фактическую аренду, договорные тарифы или применимость налогов. Неуказанные расходы не равны нулю."
+    "note": "Параметры перенесены из актуального документа на Диске. Они не подтверждают фактическую аренду, договорные тарифы или применимость налогов."
   },
   "location": {
     "country_code": "GE",
