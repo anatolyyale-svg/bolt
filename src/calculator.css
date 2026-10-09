@@ -476,11 +476,15 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 }
 
 #overview .hero-copy h1 {
-  max-width:1250px;
+  width:100%;
+  max-width:none;
   font-size:clamp(54px, 7.5vw, 112px);
   white-space:nowrap;
+  text-align:center;
+  letter-spacing:.015em;
 }
-#overview .hero-copy .actions { margin-top:280px; }
+#overview .hero-copy { left:0; right:0; max-width:none; text-align:center; }
+#overview .hero-copy .actions { justify-content:center; margin-top:325px; }
 .project-description { padding-top:54px; padding-bottom:20px; }
 .project-description-inner {
   max-width:860px;
@@ -493,7 +497,7 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
 .project-description-inner p { margin:0; color:var(--project-muted); font-size:15px; line-height:1.8; }
 @media (max-width:760px) {
   #overview .hero-copy h1 { max-width:100%; font-size:clamp(48px, 14vw, 68px); white-space:normal; }
-  #overview .hero-copy .actions { margin-top:150px; }
+  #overview .hero-copy .actions { margin-top:220px; }
   .project-description-inner { padding:22px; }
   .project-description-inner p { font-size:14px; }
 }
