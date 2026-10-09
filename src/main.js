@@ -323,17 +323,6 @@ function render() {
   const minimum = project.apartments
     .filter((unit) => unit.status === "available" && Number.isFinite(unit.pricePerMeter))
     .map((unit) => unit.pricePerMeter);
-  const typeMap = new Map(
-    project.apartments.map((unit) => [unit.typeKey || unit.type, unit.typeKey || unit.type]),
-  );
-  const typeOrder = ["studio", "one_bedroom", "two_bedroom"];
-  const typeOptions = [
-    ["", "Все"],
-    ...[
-      ...typeOrder.filter((value) => typeMap.has(value)),
-      ...[...typeMap.keys()].filter((value) => !typeOrder.includes(value)),
-    ].map((value) => [value, typeLabel(typeMap.get(value))]),
-  ];
   const history = project.history || [];
   const historySnapshot = history.at(-1);
   const map =
@@ -397,7 +386,6 @@ ${safe(project.camera) ? `<section class="reference-section camera-section"><div
 <section class="section" id="investment">${sectionHeading("07", "ROI-калькулятор")}<div class="roi-shell">${roiTabs}<div class="roi-layout"><div class="roi-main"><div class="roi-form-card"><div class="form-grid">${formFields}</div><label class="check"><input type="checkbox" id="indexation" ${finance.indexationEnabled ? "checked" : ""}>Учитывать индексацию цены за ночь</label><p class="model-note">Расчёт использует подтверждённые параметры проекта. Рост стоимости недвижимости в ROI не включён без исторических данных.</p></div><div class="roi-results"><h3>Финансовые результаты</h3>${r.missing ? `<p class="notice">${missing}: ${r.missing.map((key) => escape(labels[key] || key)).join(", ")}</p>` : ""}${expenseLine("Стоимость квартиры", resultValue(r.investment ? finance.price : null))}${expenseLine("Стоимость ремонта", money(finance.repair))}${expenseLine("Общая инвестиция", resultValue(r.investment))}${expenseLine("Валовая выручка", resultValue(r.gross))}${resultExpense("НДС", r.vat)}${expenseLine("Доход после НДС", resultValue(r.afterVat))}${resultExpense("Управление", r.management)}${expenseLine("Доход собственника", resultValue(r.owner))}${resultExpense("Налог на доход", r.tax)}${resultExpense("Обслуживание", finance.maintenance)}${expenseLine("Чистая прибыль за год 1", netLabel, "highlight")}${expenseLine("ROI (год 1)", roiLabel, "highlight")}${expenseLine("Ожидание до начала аренды", Number.isFinite(r.wait) ? `${Math.round(r.wait * 12)} мес.` : missing)}${expenseLine("Срок окупаемости (с даты покупки)", paybackLabel)}<label class="horizon-label">Накопленный доход <span>Период аренды, лет</span><input id="horizon" type="number" min="1" max="100" step="1" placeholder="${missing}"></label><p id="cumulative" class="notice"></p></div></div><aside class="card summary sticky-summary"><div class="eyebrow">ИТОГ</div><div class="summary-unit"><strong>${display(project.name)}</strong><span>${a ? `Блок ${display(a.block)} · этаж ${display(a.floor)} · №${display(a.number)}` : missing}</span><span>${a ? `${display(a.type)} · ${display(a.area)} м²` : missing}</span><strong>${money(a?.price)}</strong></div><div class="summary-images"><div>${image(a?.plan, "Планировка квартиры")}<small>Планировка квартиры</small></div><div>${image(floor?.image, "Позиция на этаже")}<small>Позиция на этаже</small></div></div>${summaryRows}<button id="pdf" class="button full">Инвестиционный PDF ${arrowIcon}</button><small class="summary-note">Пересчитывается автоматически при изменении любого поля.</small></aside></div></div></section>
 <details class="source-section"><summary>Данные проекта <span>Загрузить JSON или обновить источник</span></summary><div class="source-controls"><label class="outline upload">Загрузить JSON<input id="upload" type="file" accept="application/json"></label><input id="source-url" type="url" placeholder="HTTPS URL источника" value="${escape(project.source || "")}"><button id="connect" class="outline">Подключить</button><button id="refresh" class="outline" ${!project.source ? "disabled" : ""}>Обновить</button>${safe(project.presentation) ? `<a class="outline" target="_blank" rel="noopener" href="${escape(safe(project.presentation))}">Презентация ${arrowIcon}</a>` : ""}</div><p id="source-message" role="status"></p></details></main><footer><a class="brand" href="#">ESTATE</a><span>Инвестиционные решения на основе данных</span><span>Данные проекта требуют подтверждения источником</span></footer>`;
   refinePresentation(a, r, p, ip, floor);
-  placeTypeTabs(typeOptions);
   placeSharedSummary();
   bind();
   const tableScroll = document.querySelector(".table-scroll");
