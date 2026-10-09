@@ -115,7 +115,7 @@ const dateLabel = (value) => {
       }).format(date);
 };
 const sectionHeading = (number, title) =>
-  `<div class="reference-heading"><span>${number}</span><h2>${title}</h2></div>`;
+  `<div class="reference-heading"><h2>${title}</h2></div>`;
 const programText = (program) =>
   program
     ? `Первоначальный взнос ${program.downPercent}% · ${program.installmentPercent ?? missing}% / ${program.months} мес. · ${program.finalPercent}% финальный платёж`

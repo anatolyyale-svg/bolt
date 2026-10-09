@@ -1,4 +1,5 @@
 /* Project presentation. Catalog dimensions and financial calculations remain shared. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=PT+Serif:wght@400;700&display=swap');
 :root {
   --project-blue: #0878ad;
   --project-blue-soft: #eaf5fb;
@@ -6,6 +7,54 @@
   --project-ink: #25392f;
   --project-muted: #748079;
   --project-line: #dce3df;
+}
+
+/* Final visual tuning: calm sans-serif body, readable serif headings. */
+:root { font-family: Inter, Arial, sans-serif; }
+body, button, input, select { font-family: Inter, Arial, sans-serif; }
+h1, h2, .reference-heading h2, .model-card h3, .history-card h3, .roi-results h3 {
+  font-family: "PT Serif", Georgia, serif;
+  font-weight: 400;
+}
+.reference-heading > span { display:none; }
+.reference-heading { gap:0; }
+
+/* The architectural render is a full-bleed project banner. */
+#overview.hero { display:block; padding-top:52px; }
+#overview .hero-copy { max-width:720px; }
+#overview .hero-visual {
+  position:relative;
+  left:50%;
+  width:100vw;
+  transform:translateX(-50%);
+  height:clamp(360px, 48vw, 680px);
+  margin-top:38px;
+  border-radius:0;
+}
+#overview .hero-visual img { object-position:center 35%; }
+
+/* Match the generous, simple type selector from the supplied reference. */
+.type-tabs { gap:16px; margin:0 0 18px; }
+.type-tab {
+  min-width:112px;
+  padding:18px 28px;
+  border-radius:16px;
+  font-size:20px;
+  line-height:1.15;
+  font-weight:500;
+}
+
+/* Give labels and supporting copy enough contrast and breathing room. */
+.page-layout p, .page-layout .field-hint, .page-layout .payment-note,
+.page-layout .calc-note, .page-layout .model-note { font-size:12px; }
+.page-layout .field-label { font-size:11px; }
+.page-layout .finance-line { font-size:13px; }
+
+@media (max-width:760px) {
+  #overview.hero { padding-top:38px; }
+  #overview .hero-visual { height:clamp(260px, 70vw, 430px); margin-top:30px; }
+  .type-tabs { gap:10px; }
+  .type-tab { min-width:0; padding:14px 21px; border-radius:14px; font-size:17px; }
 }
 .ui-icon { display:inline-block; vertical-align:middle; flex-shrink:0; margin-left:6px; }
 
@@ -362,4 +411,19 @@ main > .stats strong { font-family:Georgia,serif; font-size:clamp(19px,1.9vw,25p
   .page-layout .input-wrap input, .page-layout .input-wrap input[type="date"] { font-size:13px; padding:5px 0; }
   .assumptions-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .page-layout .check { display:none; }
+}
+
+/* Keep the apartment type switcher visually prominent after the catalog rules. */
+.type-tabs { gap:16px; margin-bottom:18px; }
+.type-tab {
+  min-width:112px;
+  padding:18px 28px;
+  border-radius:16px;
+  font-size:20px;
+  line-height:1.15;
+  font-weight:500;
+}
+@media (max-width:760px) {
+  .type-tabs { gap:10px; }
+  .type-tab { min-width:0; padding:14px 21px; border-radius:14px; font-size:17px; }
 }

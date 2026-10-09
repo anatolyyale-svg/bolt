@@ -62,7 +62,15 @@ export function normalizeProject(input) {
       floor: a.floor,
       type: a.type_label || a.type,
       typeKey: a.type,
-      direction: a.window_direction || a.view || null,
+      // Centropolis confirms the orientation by apartment parity: even units
+      // face Kobuleti and odd units face Turkey. A source value is not used
+      // here because this project rule is the authoritative direction.
+      direction:
+        Number.isFinite(Number(a.number))
+          ? Number(a.number) % 2 === 0
+            ? "В сторону Кобулети"
+            : "В сторону Турции"
+          : a.window_direction || a.view || null,
       area: a.area_m2,
       pricePerMeter: a.price_per_m2,
       price: a.price_total,
