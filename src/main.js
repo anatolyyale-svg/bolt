@@ -53,6 +53,12 @@ const typeLabel = (value) =>
   ({ studio: "Студия", one_bedroom: "1+1", two_bedroom: "2+1" })[value] ||
   value ||
   missing;
+const windowDirection = (unit) => {
+  if (unit?.direction && unit.direction !== missing) return unit.direction;
+  const number = Number(unit?.number);
+  if (!Number.isFinite(number)) return missing;
+  return number % 2 === 0 ? "В сторону Кобулети" : "В сторону Турции";
+};
 const escape = (v) =>
   String(v ?? "").replace(
     /[&<>"']/g,
@@ -337,7 +343,7 @@ function render() {
   const apartmentTable = rows
     .map(
       (unit) =>
-        `<tr class="${selected === unit.id ? "selected" : unit.status}"><td><input aria-label="Сравнить квартиру ${escape(unit.number)}" type="checkbox" data-compare="${escape(unit.id)}" ${compare.has(unit.id) ? "checked" : ""}></td><td>${display(unit.block)}</td><td>${display(unit.floor)}</td><td><button class="row-select" data-select="${escape(unit.id)}" ${unit.status !== "available" ? "disabled" : ""}>${display(unit.number)}</button></td><td>${display(unit.type)}</td><td>${display(unit.direction)}</td><td>${display(unit.area)}</td><td>${money(unit.pricePerMeter)}</td><td>${money(unit.price)}</td><td><span class="badge">${selected === unit.id ? "Выбрана" : { available: "Свободна", reserved: "Забронирована", sold: "Продана" }[unit.status] || missing}</span></td></tr>`,
+        `<tr class="${selected === unit.id ? "selected" : unit.status}"><td><input aria-label="Сравнить квартиру ${escape(unit.number)}" type="checkbox" data-compare="${escape(unit.id)}" ${compare.has(unit.id) ? "checked" : ""}></td><td>${display(unit.block)}</td><td>${display(unit.floor)}</td><td><button class="row-select" data-select="${escape(unit.id)}" ${unit.status !== "available" ? "disabled" : ""}>${display(unit.number)}</button></td><td>${display(unit.type)}</td><td>${escape(windowDirection(unit))}</td><td>${display(unit.area)}</td><td>${money(unit.pricePerMeter)}</td><td>${money(unit.price)}</td><td><span class="badge">${selected === unit.id ? "Выбрана" : { available: "Свободна", reserved: "Забронирована", sold: "Продана" }[unit.status] || missing}</span></td></tr>`,
     )
     .join("");
   const comparison =
@@ -346,7 +352,7 @@ function render() {
           .filter((unit) => compare.has(unit.id))
           .map(
             (unit) =>
-              `<div class="card"><h3>Квартира ${display(unit.number)}</h3><p>${display(unit.type)} · ${display(unit.area)} м²</p><strong>${money(unit.price)}</strong><p>Блок ${display(unit.block)} · этаж ${display(unit.floor)}</p><p>Окна: ${display(unit.direction)}</p></div>`,
+              `<div class="card"><h3>Квартира ${display(unit.number)}</h3><p>${display(unit.type)} · ${display(unit.area)} м²</p><strong>${money(unit.price)}</strong><p>Блок ${display(unit.block)} · этаж ${display(unit.floor)}</p><p>Окна: ${escape(windowDirection(unit))}</p></div>`,
           )
           .join("")}</div></div>`
       : "";
